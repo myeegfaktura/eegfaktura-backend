@@ -36,8 +36,8 @@ func SendActivationMailFromTemplate(sendMail util.SendMailFunc,
 	tenant, subject string, eeg *model.Eeg, participant *model.EegParticipant) error {
 
 	templateConfigDir := filepath.Join(viper.GetString("file-content.templates"), tenant, "templates")
-	_, exists := os.Stat(templateConfigDir)
-	if errors.Is(exists, os.ErrNotExist) {
+	_, statErr := os.Stat(templateConfigDir)
+	if errors.Is(statErr, os.ErrNotExist) {
 		templateConfigDir = filepath.Join(viper.GetString("file-content.templates"), "templates")
 	}
 
@@ -53,7 +53,7 @@ func SendMeteringPointActiveMailFromTemplate(sendMail util.SendMailFunc,
 	tenant, subject, meteringPointId string, eeg *model.Eeg, participant *model.EegParticipant) error {
 
 	templateConfigDir := filepath.Join(viper.GetString("file-content.templates"), tenant, "templates")
-	if _, exists := os.Stat(templateConfigDir); errors.Is(exists, os.ErrNotExist) {
+	if _, statErr := os.Stat(templateConfigDir); errors.Is(statErr, os.ErrNotExist) {
 		templateConfigDir = filepath.Join(viper.GetString("file-content.templates"), "templates")
 	}
 

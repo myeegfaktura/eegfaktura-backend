@@ -6,19 +6,17 @@
 </head>
 <body>
 <p>Hallo {{.Participant.FirstName}},</p>
-<p>dein Zählpunkt <strong>{{.MeteringPoint}}</strong> wurde erfolgreich aktiviert. Energiedaten werden ab sofort erfasst.</p>
+<p>Ihr Zählpunkt <strong>{{.MeteringPoint}}</strong> wurde erfolgreich aktiviert. Energiedaten werden ab sofort erfasst.</p>
 <br>
 <p>Mit besten Grüßen</p>
-<p>deine VFEEG Team. Im Auftrag von,</p>
-<p>
+<p>Ihr {{.Eeg.Name}}-Team</p>
 <div>{{.Eeg.ContactPerson}}</div>
 {{if .Eeg.Contact.Phone.Valid}}
 <div>{{.Eeg.Contact.Phone.String}}</div>
 {{end}}
-</p>
 <div>Erneuerbare Energie Gemeinschaft - {{.Eeg.Name}}</div>
 <div>{{.Eeg.Description}}</div>
 <p>Powered by eegFaktura.at</p>
-<img src="cid:eegfaktura-logo-1"/>
+<img src="cid:eegfaktura-logo-1" alt="eegFaktura"/>
 </body>
 </html>

@@ -139,7 +139,10 @@ func GetParticipantByMeteringPoint(dbOpen OpenDbXConnection, tenant, meteringPoi
 		return nil, err
 	}
 
-	contactSQL, _, _ := pgDialect.From("base.contactdetail").Select(&p.Contact).Where(goqu.C("participant_id").Eq(p.Id.String())).ToSQL()
+	contactSQL, _, err := pgDialect.From("base.contactdetail").Select(&p.Contact).Where(goqu.C("participant_id").Eq(p.Id.String())).ToSQL()
+	if err != nil {
+		return nil, err
+	}
 	if err = db.Get(&p.Contact, contactSQL); err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
