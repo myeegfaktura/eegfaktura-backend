@@ -18,7 +18,7 @@ type EegParticipant struct {
 	ParticipantSince      time.Time        `json:"participantSince" db:"participantSince" goqu:"defaultifempty"`
 	VatNumber             string           `json:"vatNumber" db:"vatNumber"`
 	TaxNumber             string           `json:"taxNumber" db:"taxNumber"`
-	CompanyRegisterNumber string           `json:"companyRegisterNumber" db:"companyRegisterNumber"`
+	CompanyRegisterNumber null.String      `json:"companyRegisterNumber" db:"companyRegisterNumber"`
 	Contact               ContactInfo      `json:"contact" db:"-" goqu:"skipinsert"`
 	BillingAddress        Address          `json:"billingAddress" db:"-" goqu:"skipinsert"`
 	ResidentAddress       Address          `json:"residentAddress" db:"-" goqu:"skipinsert"`

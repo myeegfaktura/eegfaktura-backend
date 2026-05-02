@@ -4,6 +4,8 @@ import (
 	"github.com/eegfaktura/eegfaktura-backend/database"
 	"github.com/eegfaktura/eegfaktura-backend/model"
 	mqttclient "github.com/eegfaktura/eegfaktura-backend/mqtt"
+	"github.com/eegfaktura/eegfaktura-backend/parser"
+	"github.com/eegfaktura/eegfaktura-backend/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -157,6 +159,9 @@ func protocolEcReqOnlHandler(msg model.SubscribeMessage, recorder EdaRecording) 
 			logrus.WithField("error", err.Error()).Errorf("can not change metering point status %+v", meters)
 			return
 		}
+		if status == model.ACTIVE {
+			sendMeteringPointActiveMails(msg.Tenant, meters, recorder)
+		}
 	}
 
 	if err = recorder.saveNotification(map[string]interface{}{
@@ -167,6 +172,26 @@ func protocolEcReqOnlHandler(msg model.SubscribeMessage, recorder EdaRecording) 
 		logrus.WithField("PROTOCOL", msg.Protocol).Error(err)
 	}
 	_ = recorder.saveHistory(msg.Tenant, msg.MessageCode, msg.Payload.ConversationId, "ADMIN", "IN", msg.Protocol, msg.Payload)
+}
+
+func sendMeteringPointActiveMails(tenant string, meteringPointIds []string, recorder EdaRecording) {
+	eeg, err := database.GetEeg(tenant)
+	if err != nil {
+		logrus.WithField("error", err.Error()).Errorf("activation mail: cannot load EEG for tenant %s", tenant)
+		return
+	}
+
+	for _, mpId := range meteringPointIds {
+		participant, err := database.GetParticipantByMeteringPoint(recorder.databaseConnect, tenant, mpId)
+		if err != nil {
+			logrus.WithField("error", err.Error()).Errorf("activation mail: cannot find participant for metering point %s", mpId)
+			continue
+		}
+
+		if err = parser.SendMeteringPointActiveMailFromTemplate(util.SendMail, tenant, "Ihr Zählpunkt ist aktiv", mpId, eeg, participant); err != nil {
+			logrus.WithField("error", err.Error()).Errorf("activation mail: send failed for participant %s, metering point %s", participant.Id, mpId)
+		}
+	}
 }
 
 func protocolCmRevImpHandler(msg model.SubscribeMessage, recorder EdaRecording) {
