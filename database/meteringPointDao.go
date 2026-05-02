@@ -127,7 +127,10 @@ func GetParticipantByMeteringPoint(dbOpen OpenDbXConnection, tenant, meteringPoi
 
 	mpSQL, _, err := pgDialect.From("base.meteringpoint").
 		Select(goqu.C("participant_id")).
-		Where(goqu.Ex{"metering_point_id": meteringPointId, "tenant": tenant}).
+		Where(goqu.Ex{
+			"metering_point_id": goqu.Op{"eq": meteringPointId},
+			"tenant":            goqu.Op{"eq": tenant},
+		}).
 		ToSQL()
 	if err != nil {
 		return nil, err
@@ -141,7 +144,13 @@ func GetParticipantByMeteringPoint(dbOpen OpenDbXConnection, tenant, meteringPoi
 	}
 
 	var p model.EegParticipant
-	pSQL, _, err := pgDialect.From("base.participant").Select(&p).Where(goqu.Ex{"id": participantId, "tenant": tenant}).ToSQL()
+	pSQL, _, err := pgDialect.From("base.participant").
+		Select(&p).
+		Where(goqu.Ex{
+			"id":     goqu.Op{"eq": participantId},
+			"tenant": goqu.Op{"eq": tenant},
+		}).
+		ToSQL()
 	if err != nil {
 		return nil, err
 	}
