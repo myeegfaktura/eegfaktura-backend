@@ -141,20 +141,23 @@ func GetParticipantByMeteringPoint(dbOpen OpenDbXConnection, tenant, meteringPoi
 	}
 
 	var p model.EegParticipant
-	pSQL, _, err := pgDialect.From("base.participant").Select(&p).Where(goqu.C("id").Eq(participantId)).ToSQL()
+	pSQL, _, err := pgDialect.From("base.participant").Select(&p).Where(goqu.Ex{"id": participantId, "tenant": tenant}).ToSQL()
 	if err != nil {
 		return nil, err
 	}
 	if err = db.Get(&p, pSQL); err != nil {
 		return nil, err
 	}
-	return &p, CompleteParticipant(db, &p)
+	if err = CompleteParticipant(db, &p); err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
-func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status model.StatusType, meterId []string) error {
+func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status model.StatusType, meterId []string) (int64, error) {
 	db, err := dbOpen()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer db.Close()
 
@@ -165,7 +168,9 @@ func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status mod
 			"metering_point_id": goqu.Op{"eq": meterId},
 		}).
 		ToSQL()
-	_, err = db.Exec(statement)
-
-	return err
+	result, err := db.Exec(statement)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

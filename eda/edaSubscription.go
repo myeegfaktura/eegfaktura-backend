@@ -155,11 +155,12 @@ func protocolEcReqOnlHandler(msg model.SubscribeMessage, recorder EdaRecording) 
 	}
 
 	if len(meters) > 0 && len(status) > 0 {
-		if err := database.MeteringPointsSetStatus(recorder.databaseConnect, msg.Tenant, status, meters); err != nil {
+		rowsAffected, err := database.MeteringPointsSetStatus(recorder.databaseConnect, msg.Tenant, status, meters)
+		if err != nil {
 			logrus.WithField("error", err.Error()).Errorf("can not change metering point status %+v", meters)
 			return
 		}
-		if status == model.ACTIVE {
+		if status == model.ACTIVE && rowsAffected > 0 {
 			sendMeteringPointActiveMails(msg.Tenant, meters, recorder)
 		}
 	}
@@ -175,6 +176,12 @@ func protocolEcReqOnlHandler(msg model.SubscribeMessage, recorder EdaRecording) 
 }
 
 func sendMeteringPointActiveMails(tenant string, meteringPointIds []string, recorder EdaRecording) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("activation mail: recovered from panic: %v", r)
+		}
+	}()
+
 	eeg, err := database.GetEeg(tenant)
 	if err != nil {
 		logrus.WithField("error", err.Error()).Errorf("activation mail: cannot load EEG for tenant %s", tenant)
@@ -213,7 +220,7 @@ func protocolCmRevImpHandler(msg model.SubscribeMessage, recorder EdaRecording) 
 	}
 
 	if len(meters) > 0 && len(status) > 0 {
-		if err := database.MeteringPointsSetStatus(recorder.databaseConnect, msg.Tenant, status, meters); err != nil {
+		if _, err := database.MeteringPointsSetStatus(recorder.databaseConnect, msg.Tenant, status, meters); err != nil {
 			logrus.WithField("error", err.Error()).Errorf("can not change metering point status %+v", meters)
 			return
 		}
