@@ -187,6 +187,10 @@ func sendMeteringPointActiveMails(tenant string, meteringPointIds []string, reco
 			logrus.WithField("error", err.Error()).Errorf("activation mail: cannot find participant for metering point %s", mpId)
 			continue
 		}
+		if participant == nil {
+			logrus.Warnf("activation mail: no participant found for metering point %s", mpId)
+			continue
+		}
 
 		if err = parser.SendMeteringPointActiveMailFromTemplate(util.SendMail, tenant, "Ihr Zählpunkt ist aktiv", mpId, eeg, participant); err != nil {
 			logrus.WithField("error", err.Error()).Errorf("activation mail: send failed for participant %s, metering point %s", participant.Id, mpId)

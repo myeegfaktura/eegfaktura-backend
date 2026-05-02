@@ -125,28 +125,30 @@ func GetParticipantByMeteringPoint(dbOpen OpenDbXConnection, tenant, meteringPoi
 	}
 	defer db.Close()
 
-	var p model.EegParticipant
-	err = db.QueryRowx(`
-		SELECT p.id, p.firstname, p.lastname, p."participantNumber", p."businessRole", p.role,
-		       COALESCE(p."titleBefore", '') AS "titleBefore", COALESCE(p."titleAfter", '') AS "titleAfter",
-		       p."participantSince", COALESCE(p."vatNumber", '') AS "vatNumber", COALESCE(p."taxNumber", '') AS "taxNumber",
-		       p."companyRegisterNumber", p."tariffId", p.status, p.version, p."createdBy"
-		FROM base.participant p
-		JOIN base.meteringpoint mp ON mp.participant_id = p.id
-		WHERE mp.metering_point_id = $1 AND mp.tenant = $2
-	`, meteringPointId, tenant).StructScan(&p)
+	mpSQL, _, err := pgDialect.From("base.meteringpoint").
+		Select(goqu.C("participant_id")).
+		Where(goqu.Ex{"metering_point_id": meteringPointId, "tenant": tenant}).
+		ToSQL()
 	if err != nil {
+		return nil, err
+	}
+	var participantId string
+	if err = db.Get(&participantId, mpSQL); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 
-	contactSQL, _, err := pgDialect.From("base.contactdetail").Select(&p.Contact).Where(goqu.C("participant_id").Eq(p.Id.String())).ToSQL()
+	var p model.EegParticipant
+	pSQL, _, err := pgDialect.From("base.participant").Select(&p).Where(goqu.C("id").Eq(participantId)).ToSQL()
 	if err != nil {
 		return nil, err
 	}
-	if err = db.Get(&p.Contact, contactSQL); err != nil && err != sql.ErrNoRows {
+	if err = db.Get(&p, pSQL); err != nil {
 		return nil, err
 	}
-	return &p, nil
+	return &p, CompleteParticipant(db, &p)
 }
 
 func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status model.StatusType, meterId []string) error {
