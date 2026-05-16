@@ -36,8 +36,8 @@ func SendActivationMailFromTemplate(sendMail util.SendMailFunc,
 	tenant, subject string, eeg *model.Eeg, participant *model.EegParticipant) error {
 
 	templateConfigDir := filepath.Join(viper.GetString("file-content.templates"), tenant, "templates")
-	_, exists := os.Stat(templateConfigDir)
-	if errors.Is(exists, os.ErrNotExist) {
+	_, statErr := os.Stat(templateConfigDir)
+	if errors.Is(statErr, os.ErrNotExist) {
 		templateConfigDir = filepath.Join(viper.GetString("file-content.templates"), "templates")
 	}
 
@@ -47,6 +47,38 @@ func SendActivationMailFromTemplate(sendMail util.SendMailFunc,
 	}
 
 	return sendMailFromTemplate(sendMail, tenant, subject, templateConfigDir, templateConfig, eeg, participant)
+}
+
+func SendMeteringPointActiveMailFromTemplate(sendMail util.SendMailFunc,
+	tenant, subject, meteringPointId string, eeg *model.Eeg, participant *model.EegParticipant) error {
+
+	templateConfigDir := filepath.Join(viper.GetString("file-content.templates"), tenant, "templates")
+	if _, statErr := os.Stat(templateConfigDir); errors.Is(statErr, os.ErrNotExist) {
+		templateConfigDir = filepath.Join(viper.GetString("file-content.templates"), "templates")
+	}
+
+	templateConfig, err := config.ReadActivationMailTemplateConfig(filepath.Join(templateConfigDir, "zp-active-mail-template.toml"))
+	if err != nil {
+		return err
+	}
+
+	if !participant.Contact.Email.Valid {
+		log.Warnf("Participant without email contact: %s (%s)", participant.LastName, participant.Id)
+		return nil
+	}
+
+	templateData := struct {
+		Eeg           *model.Eeg
+		Participant   *model.EegParticipant
+		MeteringPoint string
+	}{eeg, participant, meteringPointId}
+
+	buf, err := ParseTemplate(filepath.Join(templateConfigDir, templateConfig.TemplateFile), templateData)
+	if err != nil {
+		return err
+	}
+
+	return sendMail(tenant, participant.Contact.Email.String, subject, buf, buildAttachments(templateConfigDir, templateConfig.InlinePictures))
 }
 
 func sendMailFromTemplate(sendMail util.SendMailFunc, tenant, subject, templatePath string, templateConfig *model.ActivationMailTemplate, eeg *model.Eeg, participant *model.EegParticipant) error {

@@ -286,7 +286,7 @@ func archiveMeteringPoint() middleware.JWTHandlerFunc {
 		vars := mux.Vars(r)
 		meterId := vars["mid"]
 
-		err := database.MeteringPointsSetStatus(database.GetDBXConnection, tenant, model.ARCHIVED, []string{meterId})
+		_, err := database.MeteringPointsSetStatus(database.GetDBXConnection, tenant, model.ARCHIVED, []string{meterId})
 		if err != nil {
 			log.WithField("error", err).Errorf("Remove Meteringpoint %s", meterId)
 			http.Error(w, err.Error(), http.StatusBadRequest)

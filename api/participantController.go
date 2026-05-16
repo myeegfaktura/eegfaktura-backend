@@ -180,7 +180,7 @@ func confirmParticipant() middleware.JWTHandlerFunc {
 				meterIds = append(meterIds, m.MeteringPoint)
 				m.Status = model.ACTIVE
 			}
-			err := database.MeteringPointsSetStatus(database.GetDBXConnection, tenant, model.ACTIVE, meterIds)
+			_, err := database.MeteringPointsSetStatus(database.GetDBXConnection, tenant, model.ACTIVE, meterIds)
 			if err != nil {
 				log.Errorf("Error SET PARTICIPANT ACTIVE: %+v", err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)

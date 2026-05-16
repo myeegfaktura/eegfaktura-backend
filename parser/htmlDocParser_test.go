@@ -97,7 +97,7 @@ func TestParseTemplate(t *testing.T) {
 		ParticipantSince:      time.Time{},
 		VatNumber:             "",
 		TaxNumber:             "",
-		CompanyRegisterNumber: "",
+		CompanyRegisterNumber: null.String{},
 		Contact: model.ContactInfo{
 			Phone: null.String{},
 			Email: null.StringFrom("my@mail.com"),
@@ -214,7 +214,7 @@ func TestParseTemplate2(t *testing.T) {
 		ParticipantSince:      time.Time{},
 		VatNumber:             "",
 		TaxNumber:             "",
-		CompanyRegisterNumber: "",
+		CompanyRegisterNumber: null.String{},
 		Contact: model.ContactInfo{
 			Phone: null.String{},
 			Email: null.StringFrom("my@mail.com"),

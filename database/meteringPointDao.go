@@ -118,10 +118,55 @@ func ActivateMeteringPoints(tenant string, meterId []string) error {
 	return err
 }
 
-func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status model.StatusType, meterId []string) error {
+func GetParticipantByMeteringPoint(dbOpen OpenDbXConnection, tenant, meteringPointId string) (*model.EegParticipant, error) {
 	db, err := dbOpen()
 	if err != nil {
-		return err
+		return nil, err
+	}
+	defer db.Close()
+
+	mpSQL, _, err := pgDialect.From("base.meteringpoint").
+		Select(goqu.C("participant_id")).
+		Where(goqu.Ex{
+			"metering_point_id": goqu.Op{"eq": meteringPointId},
+			"tenant":            goqu.Op{"eq": tenant},
+		}).
+		ToSQL()
+	if err != nil {
+		return nil, err
+	}
+	var participantId string
+	if err = db.Get(&participantId, mpSQL); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var p model.EegParticipant
+	pSQL, _, err := pgDialect.From("base.participant").
+		Select(&p).
+		Where(goqu.Ex{
+			"id":     goqu.Op{"eq": participantId},
+			"tenant": goqu.Op{"eq": tenant},
+		}).
+		ToSQL()
+	if err != nil {
+		return nil, err
+	}
+	if err = db.Get(&p, pSQL); err != nil {
+		return nil, err
+	}
+	if err = CompleteParticipant(db, &p); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status model.StatusType, meterId []string) (int64, error) {
+	db, err := dbOpen()
+	if err != nil {
+		return 0, err
 	}
 	defer db.Close()
 
@@ -132,7 +177,9 @@ func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status mod
 			"metering_point_id": goqu.Op{"eq": meterId},
 		}).
 		ToSQL()
-	_, err = db.Exec(statement)
-
-	return err
+	result, err := db.Exec(statement)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
