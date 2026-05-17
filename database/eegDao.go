@@ -13,9 +13,9 @@ import (
 const TABLE_EEG = "base.eeg"
 const TABLE_EEG_ADDRESS = "base.address"
 
-func GetEeg(tenant string) (*model.Eeg, error) {
+func GetEeg(dbOpen OpenDbXConnection, tenant string) (*model.Eeg, error) {
 
-	db, err := GetDBXConnection()
+	db, err := dbOpen()
 	if err != nil {
 		return nil, err
 	}

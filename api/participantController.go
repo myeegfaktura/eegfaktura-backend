@@ -84,7 +84,7 @@ func confirmParticipant() middleware.JWTHandlerFunc {
 		vars := mux.Vars(r)
 		participantId := vars["id"]
 
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			log.WithField("error", err).Error("Query EEG")
 			http.Error(w, err.Error(), http.StatusBadRequest)
