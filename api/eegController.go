@@ -55,7 +55,7 @@ func updateEEG() middleware.JWTHandlerFunc {
 			return
 		}
 
-		if err = database.UpdateEegPartial(tenant, e); err != nil {
+		if err = database.UpdateEegPartial(database.GetDBXConnection, tenant, e); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -104,7 +104,7 @@ func fetchTariffHistory() middleware.JWTHandlerFunc {
 		vars := mux.Vars(r)
 		idStr := vars["id"]
 
-		history, err := database.GetTariffHistory(tenant, idStr)
+		history, err := database.GetTariffHistory(database.GetDBXConnection, tenant, idStr)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -247,7 +247,7 @@ func notifications() middleware.JWTHandlerFunc {
 			return false
 		}
 		//tenant = "RC100181"
-		notifications, err := database.GetNotification(tenant, id, isAdmin())
+		notifications, err := database.GetNotification(database.GetDBXConnection, tenant, id, isAdmin())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
