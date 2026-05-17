@@ -28,8 +28,45 @@ func InitMeteringRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mu
 	s.HandleFunc("/{pid}/syncenergy", jwtWrapper(requestMeteringPointValues())).Methods("POST")
 	s.HandleFunc("/{pid}/revokemeters", jwtWrapper(requestRevokeMeteringPoint())).Methods("POST")
 	s.HandleFunc("/{pid}/updateid/{mid}", jwtWrapper(updateMeteringPointId())).Methods("PUT")
+	s.HandleFunc("/v2/{pid}/update/{mid}", jwtWrapper(updateMeteringPointPartial())).Methods("PUT")
 
 	return r
+}
+
+// updateMeteringPointPartialRequest is the JSON body accepted by the
+// /v2/{pid}/update/{mid} route. It carries a single column name +
+// value pair to apply to the row.
+type updateMeteringPointPartialRequest struct {
+	Path  string      `json:"path"`
+	Value interface{} `json:"value"`
+}
+
+func updateMeteringPointPartial() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		participantId := vars["pid"]
+		meterId := vars["mid"]
+
+		var req updateMeteringPointPartialRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.Path) == "" {
+			http.Error(w, "path is required", http.StatusBadRequest)
+			return
+		}
+
+		err := database.UpdateMeteringPointPartial(
+			tenant, claims.Username, participantId, meterId,
+			map[string]interface{}{req.Path: req.Value},
+		)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		respondWithJSON(w, http.StatusAccepted, map[string]string{"status": "ok"})
+	}
 }
 
 // updateMeteringPointIdRequest is the JSON body accepted by the
