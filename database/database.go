@@ -60,9 +60,9 @@ func GetTariff(tenant string) ([]model.Tariff, error) {
 // for the given tenant, ordered from newest to oldest version. Unlike
 // GetTariff (which queries the activeTariff view), this reads directly
 // from base.tariff and therefore includes archived versions.
-func GetTariffHistory(tenant, id string) ([]model.Tariff, error) {
+func GetTariffHistory(dbOpen OpenDbXConnection, tenant, id string) ([]model.Tariff, error) {
 
-	db, err := GetDBXConnection()
+	db, err := dbOpen()
 	if err != nil {
 		return nil, err
 	}
@@ -81,9 +81,9 @@ func GetTariffHistory(tenant, id string) ([]model.Tariff, error) {
 // GetTariffNameMap returns a map of tariff IDs to their human-readable
 // names for the active tariff set of the given tenant. Used by the
 // Excel masterdata export.
-func GetTariffNameMap(tenant string) (map[string]string, error) {
+func GetTariffNameMap(dbOpen OpenDbXConnection, tenant string) (map[string]string, error) {
 
-	db, err := GetDBXConnection()
+	db, err := dbOpen()
 	if err != nil {
 		return nil, err
 	}

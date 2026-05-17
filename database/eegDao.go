@@ -58,8 +58,8 @@ func UpdateEeg(db *sqlx.DB, tenant string, eeg *model.Eeg) error {
 	return err
 }
 
-func UpdateEegPartial(tenant string, fields map[string]interface{}) error {
-	db, err := GetDBXConnection()
+func UpdateEegPartial(dbOpen OpenDbXConnection, tenant string, fields map[string]interface{}) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}
@@ -73,8 +73,8 @@ func UpdateEegPartial(tenant string, fields map[string]interface{}) error {
 	return err
 }
 
-func UpdateEegAddressPartial(tenant string, fields map[string]interface{}) error {
-	db, err := GetDBXConnection()
+func UpdateEegAddressPartial(dbOpen OpenDbXConnection, tenant string, fields map[string]interface{}) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}
@@ -115,8 +115,8 @@ func SaveNotification(dbOpen OpenDbXConnection, tenant string, notification stri
 	return err
 }
 
-func GetNotification(tenant string, start int64, isAdmin bool) ([]model.EegNotification, error) {
-	db, err := GetDBXConnection()
+func GetNotification(dbOpen OpenDbXConnection, tenant string, start int64, isAdmin bool) ([]model.EegNotification, error) {
+	db, err := dbOpen()
 	if err != nil {
 		return nil, err
 	}
