@@ -185,6 +185,34 @@ func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status mod
 	return result.RowsAffected()
 }
 
+// FindActiveMeteringByIds returns the metering points for the given
+// tenant whose IDs are in meterIds and whose status is ACTIVE. Order
+// of the returned slice is not guaranteed.
+func FindActiveMeteringByIds(tenant string, meterIds []string) ([]*model.MeteringPoint, error) {
+	db, err := GetDBXConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	statement, _, err := pgDialect.From(TABLE_METERINGPOINT).
+		Where(goqu.Ex{
+			"tenant":            goqu.Op{"eq": tenant},
+			"status":            goqu.Op{"eq": model.ACTIVE},
+			"metering_point_id": goqu.Op{"in": meterIds},
+		}).ToSQL()
+	if err != nil {
+		return nil, err
+	}
+
+	var points []*model.MeteringPoint
+	if err := db.Select(&points, statement); err != nil {
+		log.WithField("SQL", "SELECT").Errorf("Stmt: %v", statement)
+		return nil, err
+	}
+	return points, nil
+}
+
 // MeteringPointRevoke marks a metering point as revoked for the given
 // tenant. inactiveSince records the consent end date; status is set
 // to model.REVOKED. Returns nil on success or a wrapped error if the
