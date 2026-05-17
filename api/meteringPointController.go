@@ -26,8 +26,96 @@ func InitMeteringRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mu
 	s.HandleFunc("/{pid}/create", jwtWrapper(createMeteringPoint())).Methods("PUT")
 	s.HandleFunc("/{pid}/register", jwtWrapper(registerMeteringPoint())).Methods("POST")
 	s.HandleFunc("/{pid}/syncenergy", jwtWrapper(requestMeteringPointValues())).Methods("POST")
+	s.HandleFunc("/{pid}/revokemeters", jwtWrapper(requestRevokeMeteringPoint())).Methods("POST")
 
 	return r
+}
+
+// revokeMeteringPointRequest is the JSON body accepted by the
+// /revokemeters route. `From` is the consent-end timestamp in epoch
+// milliseconds. `Reason` is optional and propagated to the EBMS
+// envelope (online path) and ignored otherwise.
+type revokeMeteringPointRequest struct {
+	MeteringPoints []struct {
+		Meter string `json:"meter"`
+	} `json:"meteringPoints"`
+	From   int64  `json:"from"`
+	Reason string `json:"reason"`
+}
+
+func requestRevokeMeteringPoint() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		participantId := vars["pid"]
+
+		var req revokeMeteringPointRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if len(req.MeteringPoints) == 0 {
+			http.Error(w, "no metering points selected", http.StatusBadRequest)
+			return
+		}
+
+		eeg, err := database.GetEeg(tenant)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if _, err := database.QueryParticipant(participantId); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		fromDate := util.TruncateToStartOfDay(time.UnixMilli(req.From))
+		var reason *string
+		if s := strings.TrimSpace(req.Reason); s != "" {
+			reason = &s
+		}
+
+		meterIds := make([]string, 0, len(req.MeteringPoints))
+		for _, m := range req.MeteringPoints {
+			meterIds = append(meterIds, m.Meter)
+		}
+
+		log.WithField("tenant", tenant).
+			WithField("participant", participantId).
+			Infof("revoke meters %v at %s", meterIds, fromDate.Format("2006-01-02"))
+
+		// When the EEG is online, the revoke is routed via EBMS; otherwise
+		// the DB row is updated directly.
+		if eeg.Online {
+			meters, err := database.FindActiveMeteringByIds(tenant, meterIds)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			var errorList []string
+			for _, m := range meters {
+				if err := mqttclient.RevokeMeteringPoint(eeg, m, fromDate.UnixMilli(), reason); err != nil {
+					log.WithField("tenant", tenant).Errorf("EBMS revoke meter %s: %v", m.MeteringPoint, err)
+					errorList = append(errorList, m.MeteringPoint+": "+err.Error())
+				}
+			}
+			if len(errorList) > 0 {
+				respondWithJSON(w, http.StatusPartialContent,
+					map[string]interface{}{"errors": errorList})
+				return
+			}
+			respondWithJSON(w, http.StatusAccepted, map[string]string{"status": "ok"})
+			return
+		}
+
+		// Offline path: just record the revoke in the database.
+		for _, meterId := range meterIds {
+			if err := database.MeteringPointRevoke(tenant, meterId, fromDate); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		respondWithJSON(w, http.StatusAccepted, map[string]string{"status": "ok"})
+	}
 }
 
 func createMeteringPoint() middleware.JWTHandlerFunc {
