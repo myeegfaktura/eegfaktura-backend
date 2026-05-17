@@ -27,8 +27,47 @@ func InitMeteringRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mu
 	s.HandleFunc("/{pid}/register", jwtWrapper(registerMeteringPoint())).Methods("POST")
 	s.HandleFunc("/{pid}/syncenergy", jwtWrapper(requestMeteringPointValues())).Methods("POST")
 	s.HandleFunc("/{pid}/revokemeters", jwtWrapper(requestRevokeMeteringPoint())).Methods("POST")
+	s.HandleFunc("/{pid}/updateid/{mid}", jwtWrapper(updateMeteringPointId())).Methods("PUT")
 
 	return r
+}
+
+// updateMeteringPointIdRequest is the JSON body accepted by the
+// /updateid/{mid} route. It contains the new metering-point ID that
+// should replace the existing one identified in the URL path.
+type updateMeteringPointIdRequest struct {
+	NewId string `json:"newId"`
+}
+
+func updateMeteringPointId() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		participantId := vars["pid"]
+		meterId := vars["mid"]
+
+		var req updateMeteringPointIdRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.NewId) == "" {
+			http.Error(w, "newId is required", http.StatusBadRequest)
+			return
+		}
+
+		err := database.UpdateMeteringPointPartial(
+			tenant, claims.Username, participantId, meterId,
+			map[string]interface{}{"metering_point_id": req.NewId},
+		)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		respondWithJSON(w, http.StatusAccepted, map[string]string{
+			"status": "ok",
+			"newId":  req.NewId,
+		})
+	}
 }
 
 // revokeMeteringPointRequest is the JSON body accepted by the
