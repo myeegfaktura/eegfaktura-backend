@@ -82,3 +82,21 @@ type MeteringPoint struct {
 	ModifiedAt      time.Time     `json:"modifiedAt" db:"modifiedAt"`
 	ModifiedBy      null.String   `json:"modifiedBy" db:"modifiedBy"`
 }
+
+// ChangePartitionFactorRequest is one entry in the payload of the
+// POST /meteringpoint/changepartitionfactor endpoint. The route
+// accepts a list of these (one per metering point whose partition
+// factor changes), and dispatches one EBMS_REQ_CHANGE_PARTFACT
+// message per receiving grid operator.
+//
+// GridOperatorId can override the EEG's default grid operator for a
+// single metering point (useful when meters live across operator
+// boundaries). Activation is the timestamp from which the new
+// partition factor takes effect.
+type ChangePartitionFactorRequest struct {
+	MeteringPoint  string        `json:"meter"`
+	Direction      DirectionType `json:"direction"`
+	GridOperatorId null.String   `json:"gridOperatorId,omitempty"`
+	Activation     time.Time     `json:"activation"`
+	PartFact       int           `json:"partFact"`
+}

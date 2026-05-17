@@ -65,6 +65,13 @@ type Energy struct {
 type Meter struct {
 	MeteringPoint string        `json:"meteringPoint"`
 	Direction     DirectionType `json:"direction,omitempty"`
+	// Activation is the epoch-millis timestamp from which a new
+	// partition factor takes effect. Only populated for EBMS_REQ_CHANGE_PARTFACT
+	// payloads; omitted in other flows.
+	Activation int64 `json:"activation,omitempty"`
+	// PartFact is the integer partition factor (0–100) requested for
+	// the meter. Only populated for EBMS_REQ_CHANGE_PARTFACT payloads.
+	PartFact int `json:"partFact,omitempty"`
 }
 
 type ResponseData struct {

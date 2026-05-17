@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/eegfaktura/eegfaktura-backend/model"
+	"gopkg.in/guregu/null.v4"
 )
 
 // captureDispatch replaces the package-level dispatch var for the
@@ -181,6 +182,96 @@ func TestDispatchErrorPropagates(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Errorf("error = %v, want %v", err, wantErr)
 	}
+}
+
+func TestChangePartitionFactorGroupsByOperator(t *testing.T) {
+	orig := dispatch
+	defer func() { dispatch = orig }()
+
+	var captured []model.EbmsMessage
+	dispatch = func(m model.EbmsMessage) error {
+		captured = append(captured, m)
+		return nil
+	}
+
+	eeg := sampleEeg() // GridOperator "NB-OP-001"
+	requests := []*model.ChangePartitionFactorRequest{
+		{
+			MeteringPoint: "M1",
+			Direction:     model.CONSUMPTION,
+			PartFact:      40,
+		},
+		{
+			MeteringPoint: "M2",
+			Direction:     model.GENERATOR,
+			PartFact:      30,
+		},
+		{
+			MeteringPoint:  "M3",
+			Direction:      model.CONSUMPTION,
+			GridOperatorId: null.StringFrom("NB-OP-OTHER"),
+			PartFact:       20,
+		},
+	}
+	if err := ChangePartitionFactor(eeg, requests); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(captured) != 2 {
+		t.Fatalf("expected 2 EBMS messages (one per operator), got %d", len(captured))
+	}
+
+	byOperator := map[string]model.EbmsMessage{}
+	for _, msg := range captured {
+		byOperator[msg.Receiver] = msg
+	}
+
+	defaultGroup, ok := byOperator["NB-OP-001"]
+	if !ok {
+		t.Fatalf("missing default-operator group; got operators: %v", keysOf(byOperator))
+	}
+	if len(defaultGroup.MeterList) != 2 {
+		t.Errorf("default-operator group: expected 2 meters, got %d", len(defaultGroup.MeterList))
+	}
+	if defaultGroup.MessageCode != model.EBMS_REQ_CHANGE_PARTFACT {
+		t.Errorf("default-operator group: wrong MessageCode %q", defaultGroup.MessageCode)
+	}
+
+	overrideGroup, ok := byOperator["NB-OP-OTHER"]
+	if !ok {
+		t.Fatalf("missing override-operator group; got operators: %v", keysOf(byOperator))
+	}
+	if len(overrideGroup.MeterList) != 1 || overrideGroup.MeterList[0].MeteringPoint != "M3" {
+		t.Errorf("override-operator group: meter list %+v", overrideGroup.MeterList)
+	}
+	if overrideGroup.MeterList[0].PartFact != 20 {
+		t.Errorf("override-operator group: PartFact propagation lost: %d", overrideGroup.MeterList[0].PartFact)
+	}
+}
+
+func TestChangePartitionFactorEmptyRequestsNoDispatch(t *testing.T) {
+	orig := dispatch
+	defer func() { dispatch = orig }()
+
+	called := false
+	dispatch = func(model.EbmsMessage) error {
+		called = true
+		return nil
+	}
+	if err := ChangePartitionFactor(sampleEeg(), nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if called {
+		t.Error("dispatch should not be called for empty request list")
+	}
+}
+
+func keysOf(m map[string]model.EbmsMessage) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestNewEbmsMessageSetsEcId(t *testing.T) {
