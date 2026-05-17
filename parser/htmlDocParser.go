@@ -117,7 +117,11 @@ func GetTemplateFor(templateType, tenant string) (string, error) {
 
 	switch templateType {
 	case "ACTIVATION":
-		return filepath.Join(path, "AktivierungsEmail-templates.html"), nil
+		// filepath.ToSlash makes the returned template path consistent
+		// across operating systems — file.Open on Windows accepts
+		// forward slashes, and downstream callers (and tests) compare
+		// against forward-slash form.
+		return filepath.ToSlash(filepath.Join(path, "AktivierungsEmail-templates.html")), nil
 	}
 	return "", errors.New("template not found")
 }
