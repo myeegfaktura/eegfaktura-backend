@@ -90,7 +90,7 @@ func confirmParticipant() middleware.JWTHandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		participant, err := database.QueryParticipant(participantId)
+		participant, err := database.QueryParticipant(database.GetDBXConnection, participantId)
 		if err != nil {
 			log.WithField("error", err).Error("Query Participant")
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -141,7 +141,7 @@ func confirmParticipant() middleware.JWTHandlerFunc {
 		//
 		//	log.Debug("Files uploaded successfully : ")
 		//}
-		if err = database.ConfirmParticipant(tenant, claims.Username, participantId); err != nil {
+		if err = database.ConfirmParticipant(database.GetDBXConnection, tenant, claims.Username, participantId); err != nil {
 			fmt.Fprint(w, err.Error())
 			return
 		}

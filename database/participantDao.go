@@ -88,9 +88,9 @@ func GetParticipant(dbConn OpenDbXConnection, tenant string) ([]model.EegPartici
 	return participants, nil
 }
 
-func QueryParticipant(participantId string) (*model.EegParticipant, error) {
+func QueryParticipant(dbOpen OpenDbXConnection, participantId string) (*model.EegParticipant, error) {
 	var participant model.EegParticipant = model.EegParticipant{}
-	db, err := GetDBXConnection()
+	db, err := dbOpen()
 	if err != nil {
 		return nil, err
 	}
@@ -282,8 +282,8 @@ func ImportParticipant(dbConn OpenDbXConnection, tenant, username string, partic
 	return saveParticipant(db, tenant, username, participant, ImportMeteringPoints)
 }
 
-func ConfirmParticipant(tenant, username, participantId string) error {
-	db, err := GetDBXConnection()
+func ConfirmParticipant(dbOpen OpenDbXConnection, tenant, username, participantId string) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}

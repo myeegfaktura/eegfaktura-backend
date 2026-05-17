@@ -241,7 +241,7 @@ func requestRevokeMeteringPoint() middleware.JWTHandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if _, err := database.QueryParticipant(participantId); err != nil {
+		if _, err := database.QueryParticipant(database.GetDBXConnection, participantId); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -327,7 +327,7 @@ func createMeteringPoint() middleware.JWTHandlerFunc {
 				return
 			}
 
-			participant, err := database.QueryParticipant(participantId)
+			participant, err := database.QueryParticipant(database.GetDBXConnection, participantId)
 			if err != nil {
 				log.WithField("error", err).Error("Query Participant")
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -416,7 +416,7 @@ func registerMeteringPoint() middleware.JWTHandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		participant, err := database.QueryParticipant(participantId)
+		participant, err := database.QueryParticipant(database.GetDBXConnection, participantId)
 		if err != nil {
 			log.WithField("error", err).Error("Query Participant")
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -486,7 +486,7 @@ func requestMeteringPointValues() middleware.JWTHandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		participant, err := database.QueryParticipant(participantId)
+		participant, err := database.QueryParticipant(database.GetDBXConnection, participantId)
 		if err != nil {
 			log.WithField("error", err).Error("Query Participant")
 			http.Error(w, err.Error(), http.StatusBadRequest)
