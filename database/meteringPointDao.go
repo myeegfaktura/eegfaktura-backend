@@ -189,8 +189,8 @@ func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status mod
 // FindActiveMeteringByIds returns the metering points for the given
 // tenant whose IDs are in meterIds and whose status is ACTIVE. Order
 // of the returned slice is not guaranteed.
-func FindActiveMeteringByIds(tenant string, meterIds []string) ([]*model.MeteringPoint, error) {
-	db, err := GetDBXConnection()
+func FindActiveMeteringByIds(dbOpen OpenDbXConnection, tenant string, meterIds []string) ([]*model.MeteringPoint, error) {
+	db, err := dbOpen()
 	if err != nil {
 		return nil, err
 	}
@@ -222,8 +222,8 @@ func FindActiveMeteringByIds(tenant string, meterIds []string) ([]*model.Meterin
 // Use case: a participant's share of an EEG meter changes (e.g. via
 // the /v2/{pid}/update/{mid}/partfact route). Old factors stay in the
 // history table for audit and billing purposes.
-func UpdateMeteringPointPartFact(tenant, username, participantId, meterId string, partFact int) error {
-	db, err := GetDBXConnection()
+func UpdateMeteringPointPartFact(dbOpen OpenDbXConnection, tenant, username, participantId, meterId string, partFact int) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}
@@ -255,8 +255,8 @@ func UpdateMeteringPointPartFact(tenant, username, participantId, meterId string
 //
 // Use case: a metering point was wired to the wrong participant on
 // import and needs to be re-assigned without disturbing its history.
-func MoveMeteringPoint(tenant, username, sourceParticipantId, destParticipantId, meterId string) error {
-	db, err := GetDBXConnection()
+func MoveMeteringPoint(dbOpen OpenDbXConnection, tenant, username, sourceParticipantId, destParticipantId, meterId string) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}
@@ -301,8 +301,8 @@ func MoveMeteringPoint(tenant, username, sourceParticipantId, destParticipantId,
 // tenant. inactiveSince records the consent end date; status is set
 // to model.REVOKED. Returns nil on success or a wrapped error if the
 // update failed.
-func MeteringPointRevoke(tenant, meterId string, inactiveSince time.Time) error {
-	db, err := GetDBXConnection()
+func MeteringPointRevoke(dbOpen OpenDbXConnection, tenant, meterId string, inactiveSince time.Time) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}
@@ -330,8 +330,8 @@ func MeteringPointRevoke(tenant, meterId string, inactiveSince time.Time) error 
 // point row. The values map carries the columns to update (already
 // in their DB-column names). modifiedBy and modifiedAt are added
 // automatically.
-func UpdateMeteringPointPartial(tenant, username, participantId, meterId string, values map[string]interface{}) error {
-	db, err := GetDBXConnection()
+func UpdateMeteringPointPartial(dbOpen OpenDbXConnection, tenant, username, participantId, meterId string, values map[string]interface{}) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}

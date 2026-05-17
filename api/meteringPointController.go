@@ -58,7 +58,7 @@ func updateMeteringPointPartFact() middleware.JWTHandlerFunc {
 			return
 		}
 
-		if err := database.UpdateMeteringPointPartFact(tenant, claims.Username, participantId, meterId, req.PartFact); err != nil {
+		if err := database.UpdateMeteringPointPartFact(database.GetDBXConnection, tenant, claims.Username, participantId, meterId, req.PartFact); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -125,7 +125,7 @@ func moveMeteringPoint() middleware.JWTHandlerFunc {
 			return
 		}
 
-		if err := database.MoveMeteringPoint(tenant, claims.Username, sourceParticipantId, destParticipantId, meterId); err != nil {
+		if err := database.MoveMeteringPoint(database.GetDBXConnection, tenant, claims.Username, sourceParticipantId, destParticipantId, meterId); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -158,6 +158,7 @@ func updateMeteringPointPartial() middleware.JWTHandlerFunc {
 		}
 
 		err := database.UpdateMeteringPointPartial(
+			database.GetDBXConnection,
 			tenant, claims.Username, participantId, meterId,
 			map[string]interface{}{req.Path: req.Value},
 		)
@@ -193,6 +194,7 @@ func updateMeteringPointId() middleware.JWTHandlerFunc {
 		}
 
 		err := database.UpdateMeteringPointPartial(
+			database.GetDBXConnection,
 			tenant, claims.Username, participantId, meterId,
 			map[string]interface{}{"metering_point_id": req.NewId},
 		)
@@ -262,7 +264,7 @@ func requestRevokeMeteringPoint() middleware.JWTHandlerFunc {
 		// When the EEG is online, the revoke is routed via EBMS; otherwise
 		// the DB row is updated directly.
 		if eeg.Online {
-			meters, err := database.FindActiveMeteringByIds(tenant, meterIds)
+			meters, err := database.FindActiveMeteringByIds(database.GetDBXConnection, tenant, meterIds)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -285,7 +287,7 @@ func requestRevokeMeteringPoint() middleware.JWTHandlerFunc {
 
 		// Offline path: just record the revoke in the database.
 		for _, meterId := range meterIds {
-			if err := database.MeteringPointRevoke(tenant, meterId, fromDate); err != nil {
+			if err := database.MeteringPointRevoke(database.GetDBXConnection, tenant, meterId, fromDate); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}

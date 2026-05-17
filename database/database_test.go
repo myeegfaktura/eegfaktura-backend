@@ -14,7 +14,9 @@ func TestAddTariff(t *testing.T) {
 	var mockDb, err = GetDatabaseMock()
 	require.NoError(t, err)
 
-	stmt := "INSERT INTO (.+) VALUES \\(0, 0, 0, 'monthly', 0, 12, 0, 100, DEFAULT, 'Sepp', 0, 'sepp', '', FALSE, 0, 1\\)"
+	// id-Spalte wird seit AddTariff() den UUID Go-seitig setzt als
+	// String-Literal eingefügt (war früher DEFAULT/serverseitig).
+	stmt := "INSERT INTO (.+) VALUES \\(0, 0, 0, 'monthly', 0, 12, 0, 100, '[0-9a-fA-F-]+', 'Sepp', 0, 'sepp', '', FALSE, 0, 1\\)"
 
 	mockDb.Mock.ExpectExec(stmt).WillReturnResult(sqlmock.NewResult(1, 1))
 
