@@ -6,8 +6,11 @@ database:
   password: "postgresPW"
   dbname: "postgresdb"
 
-jwt:
-  pubKeyFile: "./zertifikat-pub.pem"
+oidc:
+  issuer_url: "https://auth.eegfaktura-dev.duckdns.org/realms/EEGFaktura"
+  audience: "at.ourproject.vfeeg.api"
+  refresh_interval: "1h"
+  refresh_timeout: "10s"
 
 mqtt:
   host: "tcp://localhost:1883"

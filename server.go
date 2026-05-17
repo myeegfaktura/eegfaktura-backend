@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -21,9 +22,23 @@ import (
 	"github.com/spf13/viper"
 )
 
-func InitRouters() *mux.Router {
+func newTokenVerifier(ctx context.Context) *middleware.TokenVerifier {
+	cfg := middleware.OIDCConfig{
+		IssuerURL:       viper.GetString("oidc.issuer_url"),
+		Audience:        viper.GetString("oidc.audience"),
+		RefreshInterval: viper.GetDuration("oidc.refresh_interval"),
+		RefreshTimeout:  viper.GetDuration("oidc.refresh_timeout"),
+	}
+	v, err := middleware.NewTokenVerifier(ctx, cfg)
+	if err != nil {
+		log.Fatalf("oidc: build TokenVerifier: %s", err)
+	}
+	return v
+}
 
-	jwtWrapper := middleware.JWTMiddleware(viper.GetString("jwt.pubKeyFile"))
+func InitRouters(verifier *middleware.TokenVerifier) *mux.Router {
+
+	jwtWrapper := middleware.JWTMiddleware(verifier)
 
 	//r := mux.NewRouter().PathPrefix("/api").Subrouter()
 	r := mux.NewRouter()
@@ -51,10 +66,12 @@ func main() {
 	eda.InitEdaSubscription()
 	mqttclient.InitErrorSubscriptions()
 
+	verifier := newTokenVerifier(context.Background())
+
 	gqlSrv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
-	r := InitRouters()
+	r := InitRouters(verifier)
 	r.Handle("/query", gqlSrv)
-	r.Use(middleware.GQLMiddleware(viper.GetString("jwt.pubKeyFile")))
+	r.Use(middleware.GQLMiddleware(verifier))
 
 	//messageBroker.Subscribe(mqttclient.GetSubsriptions()...)
 
