@@ -1,0 +1,76 @@
+myeegfaktura/eegfaktura-backend
+================================
+
+This repository is a fork of https://github.com/eegfaktura/eegfaktura-backend
+maintained by VFEEG (Verein zur Förderung von Erneuerbaren Energiegemeinschaften)
+under the myeegfaktura organization.
+
+
+License of this Fork
+--------------------
+
+The code in this fork is offered to recipients under the
+**GNU Affero General Public License, version 3.0 (AGPL-3.0)**.
+See [LICENSE](LICENSE) for the full license text.
+
+The upstream repository (`eegfaktura/eegfaktura-backend`) is licensed under
+the **GNU Lesser General Public License, version 2.1 (LGPL-2.1)**. The
+original LGPL-2.1 license text as inherited from the upstream is preserved
+in [LICENSE.upstream-LGPL-2.1.txt](LICENSE.upstream-LGPL-2.1.txt) for
+historical reference.
+
+
+Why a stricter License in this Fork?
+------------------------------------
+
+The eegfaktura suite as a whole is operated as a network service and the
+maintainers consider AGPL-3.0's §13 network-use clause important for
+ensuring that all operators of derived services make their corresponding
+source available to users. The other eegfaktura components are already
+AGPL-3.0; this fork brings the backend into alignment with the rest of
+the suite.
+
+LGPL-2.1 §3 explicitly permits the recipient of LGPL-2.1 code to convert
+their copy to the ordinary GNU General Public License. From there,
+combination with AGPL-3.0 is permitted under the FSF license-compatibility
+chain. This fork exercises that option for its distribution. Original
+authorship and copyright of all contributors to the upstream
+LGPL-2.1 codebase remain unaffected — only the distribution terms used by
+this fork are stricter.
+
+Upstream `eegfaktura/eegfaktura-backend` is **not** affected by this
+relicensing. It remains LGPL-2.1; the present change applies only to the
+fork distributed from this repository onward.
+
+
+Contributions to this Fork
+--------------------------
+
+All contributions to this fork are accepted under the terms of AGPL-3.0
+(see [CONTRIBUTING.md](CONTRIBUTING.md) once present). New files default to
+AGPL-3.0; modifications to files inherited from the upstream LGPL-2.1
+codebase are likewise distributed under AGPL-3.0 as part of this combined
+work.
+
+
+Attribution
+-----------
+
+The eegfaktura software suite is an Austrian platform for Renewable Energy
+Communities ("Erneuerbare Energiegemeinschaften", EEG). Copyright in
+individual contributions remains with their respective authors.
+
+
+Network-Use Disclosure (AGPL-3.0 §13)
+-------------------------------------
+
+If a build of this backend is offered to users over a network, those
+users must be given access to the corresponding source code of the
+running version. The recommended way to fulfill this is:
+
+  - Display a prominent, persistent link to this repository (pinned to
+    the running commit SHA) in the application's user interface or
+    a dedicated /about endpoint.
+  - Document the running commit SHA in container image labels:
+    `org.opencontainers.image.source` and
+    `org.opencontainers.image.revision`.
