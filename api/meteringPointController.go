@@ -30,8 +30,53 @@ func InitMeteringRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mu
 	s.HandleFunc("/{pid}/updateid/{mid}", jwtWrapper(updateMeteringPointId())).Methods("PUT")
 	s.HandleFunc("/v2/{pid}/update/{mid}", jwtWrapper(updateMeteringPointPartial())).Methods("PUT")
 	s.HandleFunc("/{spid}/{dpid}/move/{mid}", jwtWrapper(moveMeteringPoint())).Methods("PUT")
+	s.HandleFunc("/changepartitionfactor", jwtWrapper(requestChangePartitionFactor())).Methods("POST")
 
 	return r
+}
+
+// changePartitionFactorRequestBody is the JSON body accepted by the
+// /changepartitionfactor route — a flat list of per-meter partition
+// factor change requests.
+type changePartitionFactorRequestBody struct {
+	MeteringPoints []*model.ChangePartitionFactorRequest `json:"meteringPoints"`
+}
+
+func requestChangePartitionFactor() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		var body changePartitionFactorRequestBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if len(body.MeteringPoints) == 0 {
+			http.Error(w, "no metering points provided", http.StatusBadRequest)
+			return
+		}
+
+		eeg, err := database.GetEeg(tenant)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// Only the EBMS-online path is implemented. The offline path
+		// would write directly to a partition-factor table that the
+		// public stand does not carry; tracked as a Phase-7 followup.
+		if !eeg.Online {
+			respondWithJSON(w, http.StatusNotImplemented, map[string]string{
+				"status": "offline path not supported (no partition_fact schema in this stand)",
+			})
+			return
+		}
+
+		if err := mqttclient.ChangePartitionFactor(eeg, body.MeteringPoints); err != nil {
+			log.WithField("tenant", tenant).WithError(err).Error("ChangePartitionFactor dispatch failed")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		respondWithJSON(w, http.StatusAccepted, map[string]string{"status": "ok"})
+	}
 }
 
 func moveMeteringPoint() middleware.JWTHandlerFunc {

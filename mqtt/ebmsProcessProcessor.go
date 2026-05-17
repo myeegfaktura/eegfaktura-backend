@@ -71,6 +71,52 @@ func RequestingMeteringPointList(eeg *model.Eeg, receiver string, from, to int64
 	return dispatch(msg)
 }
 
+// ChangePartitionFactor requests a partition-factor update for a list
+// of metering points. Meters are grouped by their target grid
+// operator (per-meter `GridOperatorId` overrides the EEG default);
+// one EBMS_REQ_CHANGE_PARTFACT message is dispatched per group with
+// the affected meters carried in MeterList.
+//
+// Returns the first error encountered when dispatching; remaining
+// groups are still attempted, and any subsequent errors are logged.
+var ChangePartitionFactor = func(eeg *model.Eeg, requests []*model.ChangePartitionFactorRequest) error {
+	if len(requests) == 0 {
+		return nil
+	}
+
+	defaultOperator := strings.ToUpper(eeg.GridOperator)
+	groups := map[string][]model.Meter{}
+	for _, req := range requests {
+		operator := defaultOperator
+		if req.GridOperatorId.Valid && req.GridOperatorId.String != "" {
+			operator = strings.ToUpper(req.GridOperatorId.String)
+		}
+		groups[operator] = append(groups[operator], model.Meter{
+			MeteringPoint: req.MeteringPoint,
+			Direction:     req.Direction,
+			Activation:    req.Activation.UnixMilli(),
+			PartFact:      req.PartFact,
+		})
+	}
+
+	var firstErr error
+	for operator, meters := range groups {
+		msg := newEbmsMessage(eeg, nil, model.EBMS_REQ_CHANGE_PARTFACT)
+		msg.Receiver = operator
+		msg.MeterList = meters
+		if err := dispatch(msg); err != nil {
+			log.WithError(err).
+				WithField("operator", operator).
+				WithField("meter_count", len(meters)).
+				Error("ChangePartitionFactor group failed")
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
 // sendRegistration is the common path for online and offline
 // participation registration.
 func sendRegistration(eeg *model.Eeg, meter *model.MeteringPoint, from *int64, code model.EbMsMessageType) error {
