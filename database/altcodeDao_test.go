@@ -59,6 +59,53 @@ func TestArchiveTariff(t *testing.T) {
 
 // --- eegDao.go ---
 
+func TestGetEeg(t *testing.T) {
+	mockDb, err := GetDatabaseMock()
+	require.NoError(t, err)
+
+	row := sqlmock.NewRows([]string{
+		"name", "businessNr", "legal", "gridoperator_name", "communityId",
+		"gridoperator_code", "rcNumber", "allocationMode", "settlementInterval",
+		"providerBusinessNr", "street", "streetNumber", "zip", "city",
+		"phone", "email", "website", "iban", "owner", "sepa",
+		"taxNumber", "vatNumber", "online", "contactPerson",
+	}).AddRow(
+		"T-VIERE", 123456789, "verein", "Netz OOE", "AT00300000000TC100100000000000001",
+		"AT003000", "TE100100", "DYNAMIC", "MONTHLY",
+		nil, "Solarstraße", "9", "1111", "Solarcity",
+		"0043-664-1234567", "test-eeg@gmx.at", "test-eeg.at",
+		"AT011234000000321321", "T-VIERE", false,
+		"11 123/4567", nil, false, "Max Sonnenmann",
+	)
+	mockDb.Mock.ExpectQuery(`SELECT name, .* FROM base\.eeg WHERE tenant = \$1`).
+		WithArgs("TE100100").
+		WillReturnRows(row)
+
+	got, err := GetEeg(mockDb.OpenMockDb, "TE100100")
+	require.NoError(t, err)
+	assert.Equal(t, "T-VIERE", got.Name)
+	assert.Equal(t, "TE100100", got.Id, "Id should be set to the tenant string")
+	assert.Equal(t, "AT00300000000TC100100000000000001", got.CommunityId)
+	assert.NoError(t, mockDb.Mock.ExpectationsWereMet())
+}
+
+func TestGetEeg_NoRowsReturnsEmpty(t *testing.T) {
+	mockDb, err := GetDatabaseMock()
+	require.NoError(t, err)
+
+	// QueryRow without a row triggers sql.ErrNoRows in Scan; the function
+	// returns &eeg, nil for that case (NOT the wrapped error).
+	mockDb.Mock.ExpectQuery(`SELECT name, .* FROM base\.eeg WHERE tenant = \$1`).
+		WithArgs("TE-MISSING").
+		WillReturnRows(sqlmock.NewRows([]string{"name"})) // empty
+
+	got, err := GetEeg(mockDb.OpenMockDb, "TE-MISSING")
+	assert.NoError(t, err)
+	assert.NotNil(t, got)
+	assert.Empty(t, got.Name)
+	assert.NoError(t, mockDb.Mock.ExpectationsWereMet())
+}
+
 func TestSaveNotification(t *testing.T) {
 	mockDb, err := GetDatabaseMock()
 	require.NoError(t, err)

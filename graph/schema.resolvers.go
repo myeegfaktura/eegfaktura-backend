@@ -18,7 +18,7 @@ import (
 
 // UpdateEegModel is the resolver for the updateEegModel field.
 func (r *mutationResolver) UpdateEegModel(ctx context.Context, tenant string, eegModel *gmodel.EegModel) (*model.Eeg, error) {
-	eeg, err := database.GetEeg(tenant)
+	eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (r *mutationResolver) MasterDataUpload(ctx context.Context, tenant string, 
 func (r *queryResolver) Eeg(ctx context.Context) (*model.Eeg, error) {
 	tenant := middleware.ForContextTenant(ctx)
 	log.Infof("Query Tenant: %+v", tenant)
-	eeg, err := database.GetEeg(tenant)
+	eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 	if err != nil {
 		return nil, err
 	}

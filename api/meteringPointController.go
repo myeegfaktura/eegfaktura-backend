@@ -88,7 +88,7 @@ func requestChangePartitionFactor() middleware.JWTHandlerFunc {
 			return
 		}
 
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -236,7 +236,7 @@ func requestRevokeMeteringPoint() middleware.JWTHandlerFunc {
 			return
 		}
 
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -320,7 +320,7 @@ func createMeteringPoint() middleware.JWTHandlerFunc {
 
 		if m.Status == model.NEW {
 			log.WithField("tenant", tenant).Infof("register Meter:  %v ", m)
-			eeg, err := database.GetEeg(tenant)
+			eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 			if err != nil {
 				log.WithField("error", err).Error("Query EEG")
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -410,7 +410,7 @@ func registerMeteringPoint() middleware.JWTHandlerFunc {
 			return
 		}
 
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			log.WithField("error", err).Error("Query EEG")
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -480,7 +480,7 @@ func requestMeteringPointValues() middleware.JWTHandlerFunc {
 			return
 		}
 
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			log.WithField("error", err).Error("Query EEG")
 			http.Error(w, err.Error(), http.StatusBadRequest)

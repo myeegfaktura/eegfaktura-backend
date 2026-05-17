@@ -182,7 +182,7 @@ func sendMeteringPointActiveMails(tenant string, meteringPointIds []string, reco
 		}
 	}()
 
-	eeg, err := database.GetEeg(tenant)
+	eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 	if err != nil {
 		logrus.WithField("error", err.Error()).Errorf("activation mail: cannot load EEG for tenant %s", tenant)
 		return

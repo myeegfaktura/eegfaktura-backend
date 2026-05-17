@@ -37,7 +37,7 @@ func InitEegRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mux.Rou
 func getEEG() middleware.JWTHandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
 		log.Infof("Query EEG with TENANT: %s", tenant)
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -59,7 +59,7 @@ func updateEEG() middleware.JWTHandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -132,7 +132,7 @@ func archiveTariff() middleware.JWTHandlerFunc {
 
 func syncParticipantsEda() middleware.JWTHandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			log.WithField("error", err).Error("Query EEG")
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -169,7 +169,7 @@ func syncMeterpointEda() middleware.JWTHandlerFunc {
 			return
 		}
 
-		eeg, err := database.GetEeg(tenant)
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
 		if err != nil {
 			log.WithField("error", err).Error("Query EEG")
 			http.Error(w, err.Error(), http.StatusBadRequest)
