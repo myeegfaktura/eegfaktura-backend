@@ -1,6 +1,6 @@
 module github.com/eegfaktura/eegfaktura-backend
 
-go 1.20
+go 1.25.0
 
 require (
 	github.com/99designs/gqlgen v0.17.20
