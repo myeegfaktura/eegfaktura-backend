@@ -56,6 +56,62 @@ func GetTariff(tenant string) ([]model.Tariff, error) {
 	return tariff, err
 }
 
+// GetTariffHistory returns all versions of the tariff identified by id
+// for the given tenant, ordered from newest to oldest version. Unlike
+// GetTariff (which queries the activeTariff view), this reads directly
+// from base.tariff and therefore includes archived versions.
+func GetTariffHistory(tenant, id string) ([]model.Tariff, error) {
+
+	db, err := GetDBXConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	tariff := []model.Tariff{}
+	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh" `+
+		`FROM base.tariff WHERE tenant = $1 AND id = $2 ORDER BY version DESC`, tenant, id)
+	if err == sql.ErrNoRows {
+		return []model.Tariff{}, nil
+	}
+
+	return tariff, err
+}
+
+// GetTariffNameMap returns a map of tariff IDs to their human-readable
+// names for the active tariff set of the given tenant. Used by the
+// Excel masterdata export.
+func GetTariffNameMap(tenant string) (map[string]string, error) {
+
+	db, err := GetDBXConnection()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT id, name FROM base.activetariff WHERE tenant = $1`, tenant)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return map[string]string{}, nil
+		}
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]string{}
+	for rows.Next() {
+		var id, name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		out[id] = name
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func ArchiveTariff(dbConn OpenDbXConnection, tenant string, id string) error {
 
 	db, err := dbConn()

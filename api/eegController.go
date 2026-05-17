@@ -24,6 +24,7 @@ func InitEegRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mux.Rou
 	s.HandleFunc("", jwtWrapper(updateEEG())).Methods("POST")
 	s.HandleFunc("/tariff", jwtWrapper(getTariff())).Methods("GET")
 	s.HandleFunc("/tariff", jwtWrapper(addTariff())).Methods("POST")
+	s.HandleFunc("/tariff/{id}", jwtWrapper(fetchTariffHistory())).Methods("GET")
 	s.HandleFunc("/tariff/{id}", jwtWrapper(archiveTariff())).Methods("DELETE")
 	s.HandleFunc("/sync/participants", jwtWrapper(syncParticipantsEda())).Methods("POST")
 	s.HandleFunc("/sync/meterpoint", jwtWrapper(syncMeterpointEda())).Methods("POST")
@@ -95,6 +96,20 @@ func addTariff() middleware.JWTHandlerFunc {
 			return
 		}
 		respondWithJSON(w, http.StatusCreated, t)
+	}
+}
+
+func fetchTariffHistory() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		idStr := vars["id"]
+
+		history, err := database.GetTariffHistory(tenant, idStr)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		respondWithJSON(w, http.StatusOK, history)
 	}
 }
 
