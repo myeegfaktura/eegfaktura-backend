@@ -142,7 +142,7 @@ func confirmParticipant() middleware.JWTHandlerFunc {
 		//	log.Debug("Files uploaded successfully : ")
 		//}
 		if err = database.ConfirmParticipant(tenant, claims.Username, participantId); err != nil {
-			fmt.Fprintf(w, err.Error())
+			fmt.Fprint(w, err.Error())
 			return
 		}
 		participant.Status = model.ACTIVE
