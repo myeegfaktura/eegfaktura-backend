@@ -312,7 +312,7 @@ func createMeteringPoint() middleware.JWTHandlerFunc {
 		m.RegisteredSince = time.Now()
 		m.ModifiedBy = null.StringFrom(claims.Username)
 
-		err = database.RegisterMeteringPoint(tenant, participantId, &m)
+		err = database.RegisterMeteringPoint(database.GetDBXConnection, tenant, participantId, &m)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -377,7 +377,7 @@ func updateMeteringPoint() middleware.JWTHandlerFunc {
 
 		m.ModifiedAt = time.Now()
 		m.ModifiedBy = null.StringFrom(claims.Username)
-		err = database.UpdateMeteringPoint(tenant, participantId, meterId, &m)
+		err = database.UpdateMeteringPoint(database.GetDBXConnection, tenant, participantId, meterId, &m)
 		if err != nil {
 			log.WithField("error", err).Error("Update Meteringpoint")
 			http.Error(w, err.Error(), http.StatusBadRequest)

@@ -42,8 +42,8 @@ func saveMeteringPoint(tx *sql.Tx, meteringEntry []meteringEntryType) error {
 	return err
 }
 
-func RegisterMeteringPoint(tenant, participantId string, point *model.MeteringPoint) error {
-	db, err := GetDBXConnection()
+func RegisterMeteringPoint(dbOpen OpenDbXConnection, tenant, participantId string, point *model.MeteringPoint) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}
@@ -61,8 +61,8 @@ func RegisterMeteringPoint(tenant, participantId string, point *model.MeteringPo
 	return err
 }
 
-func UpdateMeteringPoint(tenant, participantId, meterId string, meteringPoint *model.MeteringPoint) error {
-	db, err := GetDBXConnection()
+func UpdateMeteringPoint(dbOpen OpenDbXConnection, tenant, participantId, meterId string, meteringPoint *model.MeteringPoint) error {
+	db, err := dbOpen()
 	if err != nil {
 		return err
 	}
