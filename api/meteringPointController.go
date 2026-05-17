@@ -31,8 +31,42 @@ func InitMeteringRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mu
 	s.HandleFunc("/v2/{pid}/update/{mid}", jwtWrapper(updateMeteringPointPartial())).Methods("PUT")
 	s.HandleFunc("/{spid}/{dpid}/move/{mid}", jwtWrapper(moveMeteringPoint())).Methods("PUT")
 	s.HandleFunc("/changepartitionfactor", jwtWrapper(requestChangePartitionFactor())).Methods("POST")
+	s.HandleFunc("/{pid}/update/{mid}/partfact", jwtWrapper(updateMeteringPointPartFact())).Methods("PUT")
 
 	return r
+}
+
+// updateMeteringPointPartFactRequest is the JSON body for the
+// /update/{mid}/partfact route — a single integer.
+type updateMeteringPointPartFactRequest struct {
+	PartFact int `json:"partFact"`
+}
+
+func updateMeteringPointPartFact() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		participantId := vars["pid"]
+		meterId := vars["mid"]
+
+		var req updateMeteringPointPartFactRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if req.PartFact < 0 || req.PartFact > 100 {
+			http.Error(w, "partFact must be in 0..100", http.StatusBadRequest)
+			return
+		}
+
+		if err := database.UpdateMeteringPointPartFact(tenant, claims.Username, participantId, meterId, req.PartFact); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		respondWithJSON(w, http.StatusAccepted, map[string]interface{}{
+			"status":   "ok",
+			"partFact": req.PartFact,
+		})
+	}
 }
 
 // changePartitionFactorRequestBody is the JSON body accepted by the

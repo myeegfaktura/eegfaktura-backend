@@ -332,3 +332,38 @@ create table file_attributes
 
 alter table file_attributes
     owner to vfeeg;
+
+-- ----------------------------------------------------------------------
+-- Metering-Point Partition Factor history
+--
+-- Stores the per-meter partition factor versioned by SERIAL. The
+-- activeMeteringPartition view exposes only the latest version per
+-- metering point. New partition-factor values are appended (INSERT
+-- with the next version) rather than updated, so the history is
+-- preserved for audit / billing.
+-- ----------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS base.metering_partition_factor
+(
+    metering_point_id TEXT    NOT NULL,
+    version           SERIAL,
+    participant_id    UUID    NOT NULL,
+    tenant            TEXT    NOT NULL,
+    "partFact"        INTEGER NOT NULL,
+    "createdAt"       DATE    NOT NULL DEFAULT now(),
+    "createdBy"       VARCHAR NOT NULL,
+    CONSTRAINT meteringpointPartitionPK PRIMARY KEY (metering_point_id, version),
+    CONSTRAINT FK_MeteringpointPartition FOREIGN KEY (metering_point_id, tenant)
+        REFERENCES base.meteringpoint (metering_point_id, tenant) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE OR REPLACE VIEW base.activeMeteringPartition AS
+SELECT *
+FROM (
+    SELECT *, ROW_NUMBER() OVER (
+        PARTITION BY metering_point_id, participant_id
+        ORDER BY version DESC
+    ) AS rowid
+    FROM base.metering_partition_factor
+) AS partp
+WHERE rowid = 1;

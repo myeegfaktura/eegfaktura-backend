@@ -10,6 +10,7 @@ import (
 )
 
 const TABLE_METERINGPOINT = "base.meteringpoint"
+const TABLE_PARTITION_FACT = "base.metering_partition_factor"
 
 type meteringEntryType struct {
 	model.MeteringPoint
@@ -211,6 +212,41 @@ func FindActiveMeteringByIds(tenant string, meterIds []string) ([]*model.Meterin
 		return nil, err
 	}
 	return points, nil
+}
+
+// UpdateMeteringPointPartFact appends a new partition-factor row to
+// the metering_partition_factor history table. The SERIAL version
+// column ensures monotonic ordering; the activeMeteringPartition view
+// exposes only the latest version per metering point.
+//
+// Use case: a participant's share of an EEG meter changes (e.g. via
+// the /v2/{pid}/update/{mid}/partfact route). Old factors stay in the
+// history table for audit and billing purposes.
+func UpdateMeteringPointPartFact(tenant, username, participantId, meterId string, partFact int) error {
+	db, err := GetDBXConnection()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	statement, _, err := pgDialect.Insert(TABLE_PARTITION_FACT).
+		Rows(goqu.Record{
+			"metering_point_id": meterId,
+			"participant_id":    participantId,
+			"tenant":            tenant,
+			"partFact":          partFact,
+			"createdBy":         username,
+		}).
+		ToSQL()
+	if err != nil {
+		return err
+	}
+
+	if _, err = db.Exec(statement); err != nil {
+		log.WithField("SQL", "INSERT").Errorf("Stmt: %v", statement)
+		return err
+	}
+	return nil
 }
 
 // MoveMeteringPoint re-parents a metering point from one participant
