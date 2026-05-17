@@ -1,14 +1,16 @@
 module github.com/eegfaktura/eegfaktura-backend
 
-go 1.20
+go 1.25.0
 
 require (
 	github.com/99designs/gqlgen v0.17.20
 	github.com/BurntSushi/toml v1.2.1
 	github.com/DATA-DOG/go-sqlmock v1.5.0
+	github.com/MicahParks/keyfunc/v3 v3.8.0
 	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/eclipse/paho.mqtt.golang v1.4.2
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -24,6 +26,11 @@ require (
 	google.golang.org/grpc v1.52.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/guregu/null.v4 v4.0.0
+)
+
+require (
+	github.com/MicahParks/jwkset v0.11.0 // indirect
+	golang.org/x/time v0.9.0 // indirect
 )
 
 require (

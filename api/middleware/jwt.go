@@ -1,74 +1,53 @@
 package middleware
 
 import (
-	"context"
-	"crypto/rsa"
-	"crypto/sha1"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
-	"github.com/golang-jwt/jwt"
-	"github.com/gorilla/mux"
-	log "github.com/sirupsen/logrus"
-	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
-)
 
-type JwtValidateMiddleware struct {
-	jwtUtil *AccessTokenGenJWT
-}
+	log "github.com/sirupsen/logrus"
+)
 
 const (
 	BASIC_SCHEMA  string = "Basic "
 	BEARER_SCHEMA string = "Bearer "
 )
 
-func NewJWTMiddleware(jwtUtil *AccessTokenGenJWT) *JwtValidateMiddleware {
-	return &JwtValidateMiddleware{
-		jwtUtil: jwtUtil,
+// JWTMiddleware returns an http middleware that validates the
+// Authorization: Bearer ... access token using the supplied
+// TokenVerifier (OIDC + JWKS). On success the handler is invoked with
+// the parsed PlatformClaims and the canonical tenant string.
+//
+// Tenant identification: the request must carry either an
+// "X-Tenant" or (legacy) "tenant" header. The value must be present
+// in claims.tenant (case-insensitive); otherwise the request is
+// rejected with 403.
+func JWTMiddleware(verifier *TokenVerifier) func(JWTHandlerFunc) http.HandlerFunc {
+	if verifier == nil {
+		log.Fatal("JWTMiddleware: nil TokenVerifier")
 	}
-}
-
-func init() {
-	jwt.TimeFunc = func() time.Time {
-		return time.Now().UTC().Add(time.Second * 5)
-	}
-}
-
-func JWTMiddleware(publicKeyPath string /*jwtUtil *AccessTokenGenJWT*/) func(JWTHandlerFunc) http.HandlerFunc {
-	pub, err := loadEncryptionKey(publicKeyPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	jwtUtil := &AccessTokenGenJWT{PublicKey: pub.key}
-
 	return func(handler JWTHandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			jwtToken := r.Header.Get("Authorization")
-			if len(jwtToken) == 0 {
-				log.Printf("No Access_token in request!\n")
-				w.WriteHeader(http.StatusForbidden)
+			authz := r.Header.Get("Authorization")
+			if len(authz) == 0 {
+				log.Printf("No Authorization header in request")
+				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-
-			if strings.HasPrefix(jwtToken, BEARER_SCHEMA) {
-				jwtToken = jwtToken[len(BEARER_SCHEMA):]
-			} else {
+			if !strings.HasPrefix(authz, BEARER_SCHEMA) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
+			tokenStr := authz[len(BEARER_SCHEMA):]
 
-			claims, err := jwtUtil.ExtractClaims(jwtToken)
+			claims, err := verifier.Verify(tokenStr)
 			if err != nil {
-				log.Printf("Error while parsing token: %s\n", err)
-				w.WriteHeader(http.StatusForbidden)
+				log.Printf("Token verification failed: %s", err)
+				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
 
-			tenant := r.Header.Get("tenant")
-			if contains(claims.Tenants, tenant) == false {
+			tenant := tenantHeader(r)
+			if !contains(claims.Tenants, tenant) {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
@@ -78,112 +57,19 @@ func JWTMiddleware(publicKeyPath string /*jwtUtil *AccessTokenGenJWT*/) func(JWT
 	}
 }
 
-func (m *JwtValidateMiddleware) WrapHandler(secured SecHandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		jwtToken := r.Header.Get("access_token")
-		if len(jwtToken) == 0 {
-			log.Printf("No Access_token in request!")
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		claims, err := m.jwtUtil.ExtractClaims(jwtToken)
-		if err != nil {
-			fmt.Printf("Error while parsing token: %s\n", err)
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-
-		vars := mux.Vars(r)
-		if vars == nil {
-			vars = make(map[string]string)
-		}
-
-		ctx := context.WithValue(context.Background(), "upstream-user-agent", r.Header.Get("User-Agent"))
-		if err := secured(ctx, w, r, vars, claims); err != nil {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
-		}
-
+// tenantHeader returns the tenant identifier from the request, preferring
+// the canonical X-Tenant header and falling back to the legacy lowercase
+// "tenant" header for backward compatibility with existing clients.
+func tenantHeader(r *http.Request) string {
+	if v := r.Header.Get("X-Tenant"); v != "" {
+		return v
 	}
-}
-
-// PublicKeyResult is a wrapper for the public key and the kid that identifies it
-type PublicKeyResult struct {
-	key *rsa.PublicKey
-	kid string
-}
-
-func loadEncryptionKey(encryptionKeyPath string) (*PublicKeyResult, *KeyLoadError) {
-
-	keyData, err := ioutil.ReadFile(encryptionKeyPath)
-	if err != nil {
-		return nil, &KeyLoadError{Operation: "read", Err: "Failed to read encryption key from file: " + encryptionKeyPath}
-	}
-
-	block, _ := pem.Decode(keyData)
-
-	var pub interface{}
-	if pub, err = x509.ParsePKIXPublicKey(block.Bytes); err != nil {
-		if cert, err := x509.ParseCertificate(block.Bytes); err == nil {
-			pub = cert.PublicKey
-		} else {
-			return nil, &KeyLoadError{Operation: "parse", Err: "Failed to parse encryption key PEM"}
-		}
-	}
-
-	kid := fmt.Sprintf("%x", sha1.Sum(keyData))
-
-	publicKey, ok := pub.(*rsa.PublicKey)
-	if !ok {
-		return nil, &KeyLoadError{Operation: "cast", Err: "Failed to cast key to rsa.PublicKey"}
-	}
-
-	return &PublicKeyResult{publicKey, kid}, nil
-}
-
-// TokenError describes an error that can occur during JWT generation
-type TokenError struct {
-	// Err is a description of the error that occurred.
-	Desc string
-
-	// From is optionally the original error from which this one was caused.
-	From error
-}
-
-// KeyLoadError describes an error that can occur during key loading
-type KeyLoadError struct {
-	// Operation is the operation which caused the error, such as
-	// "read", "parse" or "cast".
-	Operation string
-
-	// Err is a description of the error that occurred during the operation.
-	Err string
-}
-
-func (e *KeyLoadError) Error() string {
-	if e == nil {
-		return "<nil>"
-	}
-	return e.Operation + ": " + e.Err
-}
-
-func (tokenErr *TokenError) Error() string {
-	if tokenErr == nil {
-		return "<nil>"
-	}
-	err := tokenErr.Desc
-	if tokenErr.From != nil {
-		err += " (" + tokenErr.From.Error() + ")"
-	}
-	return err
+	return r.Header.Get("tenant")
 }
 
 func contains(s []string, str string) bool {
 	for _, v := range s {
-		if strings.ToUpper(v) == strings.ToUpper(str) {
+		if strings.EqualFold(v, str) {
 			return true
 		}
 	}

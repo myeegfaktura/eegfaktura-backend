@@ -2,9 +2,10 @@ package middleware
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var tenantCtxKey = &contextKey{"tenant"}
@@ -13,46 +14,42 @@ type contextKey struct {
 	name string
 }
 
-func GQLMiddleware(publicKeyPath string) func(http.Handler) http.Handler {
-	pub, err := loadEncryptionKey(publicKeyPath)
-	if err != nil {
-		log.Fatal(err)
+// GQLMiddleware wires the OIDC TokenVerifier into the GraphQL endpoint
+// pipeline. It validates the bearer token, checks the tenant header,
+// and propagates the canonical tenant string through the request
+// context (ForContextTenant).
+func GQLMiddleware(verifier *TokenVerifier) func(http.Handler) http.Handler {
+	if verifier == nil {
+		log.Fatal("GQLMiddleware: nil TokenVerifier")
 	}
-	jwtUtil := &AccessTokenGenJWT{PublicKey: pub.key}
-
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			jwtToken := r.Header.Get("Authorization")
-			if len(jwtToken) == 0 {
-				log.Printf("No Access_token in request!\n")
-				w.WriteHeader(http.StatusForbidden)
+			authz := r.Header.Get("Authorization")
+			if len(authz) == 0 {
+				log.Printf("No Authorization header in request")
+				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-
-			if strings.HasPrefix(jwtToken, BEARER_SCHEMA) {
-				jwtToken = jwtToken[len(BEARER_SCHEMA):]
-			} else {
+			if !strings.HasPrefix(authz, BEARER_SCHEMA) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
+			tokenStr := authz[len(BEARER_SCHEMA):]
 
-			claims, err := jwtUtil.ExtractClaims(jwtToken)
+			claims, err := verifier.Verify(tokenStr)
 			if err != nil {
-				log.Printf("Error while parsing token: %s\n", err)
+				log.Printf("Token verification failed: %s", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			tenant := tenantHeader(r)
+			if !contains(claims.Tenants, tenant) {
 				w.WriteHeader(http.StatusForbidden)
 				return
 			}
 
-			tenant := r.Header.Get("tenant")
-			if contains(claims.Tenants, tenant) == false {
-				w.WriteHeader(http.StatusForbidden)
-				return
-			}
-
-			// put it in context
 			ctx := context.WithValue(r.Context(), tenantCtxKey, strings.ToUpper(tenant))
-
-			// and call the next with our new context
 			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)
 		})
