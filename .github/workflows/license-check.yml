@@ -1,0 +1,99 @@
+name: License Inventory
+
+# Runs go-licenses to enumerate every transitive dependency's license,
+# uploads the result as a CI artifact for human review, and fails the
+# job if any well-known AGPL-incompatible license string shows up.
+#
+# The deny-list focuses on AGPL-§6-conflicts that go-licenses itself
+# does not categorize: BSL (Akka 2.7+, MariaDB MaxScale, Sentry),
+# SSPL (MongoDB), Elastic-License-2 (Elasticsearch ≥7.11),
+# Confluent-Community-License, and the Commons-Clause add-on.
+#
+# We intentionally do NOT fail on go-licenses' built-in "forbidden"
+# category — that bucket includes AGPL itself, which is exactly the
+# license of this project. The deny-list is the targeted filter.
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses@latest
+
+      - name: Generate license report (CSV)
+        run: |
+          go-licenses report ./... 2>/dev/null | sort -u > LICENSES.csv
+          echo "## Third-Party License Inventory" > LICENSES.md
+          echo "" >> LICENSES.md
+          echo "Generated for commit \`${{ github.sha }}\` on $(date -u +'%Y-%m-%dT%H:%M:%SZ')." >> LICENSES.md
+          echo "" >> LICENSES.md
+          echo "| Module | License URL | License |" >> LICENSES.md
+          echo "|--------|-------------|---------|" >> LICENSES.md
+          awk -F',' '{printf "| %s | %s | %s |\n", $1, $2, $3}' LICENSES.csv >> LICENSES.md
+
+      - name: Upload inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-inventory
+          path: |
+            LICENSES.csv
+            LICENSES.md
+          retention-days: 90
+
+      - name: Deny-list check
+        run: |
+          set -e
+          declare -A patterns=(
+            ["Business Source License"]="BSL — incompatible with AGPL §6 (use-restrictions)"
+            ["BSL-"]="BSL — incompatible with AGPL §6 (use-restrictions)"
+            ["Server Side Public License"]="SSPL — FSF lists as non-free, incompatible"
+            ["SSPL"]="SSPL — FSF lists as non-free, incompatible"
+            ["Elastic License 2"]="Elastic License v2 — use-restrictions, incompatible"
+            ["ELv2"]="Elastic License v2 — use-restrictions, incompatible"
+            ["Confluent Community License"]="CCL — use-restrictions, incompatible"
+            ["Commons Clause"]="Commons Clause — adds commercial restriction, incompatible"
+          )
+          failed=0
+          for pattern in "${!patterns[@]}"; do
+            if grep -Fqi "$pattern" LICENSES.csv; then
+              echo "::error::Forbidden license pattern found: \"$pattern\" — ${patterns[$pattern]}"
+              echo "Matching lines:"
+              grep -Fi "$pattern" LICENSES.csv | head -5
+              failed=1
+            fi
+          done
+          if [ "$failed" -eq 1 ]; then
+            echo "::error::License inventory contains AGPL-incompatible licenses. Update dependencies or escalate."
+            exit 1
+          fi
+          echo "License inventory passed deny-list check."
+
+      - name: Sanity check — unknown / empty license
+        run: |
+          # Flag (but do not fail on) modules where go-licenses could not
+          # identify the license. These usually need a manual look.
+          unknown_count=$(awk -F',' '$3 == "Unknown" || $3 == "" {print}' LICENSES.csv | wc -l)
+          if [ "$unknown_count" -gt 0 ]; then
+            echo "::warning::$unknown_count module(s) have Unknown or empty license — manual review recommended:"
+            awk -F',' '$3 == "Unknown" || $3 == "" {printf "  %s\n", $1}' LICENSES.csv
+          fi
