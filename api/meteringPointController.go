@@ -29,8 +29,29 @@ func InitMeteringRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mu
 	s.HandleFunc("/{pid}/revokemeters", jwtWrapper(requestRevokeMeteringPoint())).Methods("POST")
 	s.HandleFunc("/{pid}/updateid/{mid}", jwtWrapper(updateMeteringPointId())).Methods("PUT")
 	s.HandleFunc("/v2/{pid}/update/{mid}", jwtWrapper(updateMeteringPointPartial())).Methods("PUT")
+	s.HandleFunc("/{spid}/{dpid}/move/{mid}", jwtWrapper(moveMeteringPoint())).Methods("PUT")
 
 	return r
+}
+
+func moveMeteringPoint() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		sourceParticipantId := vars["spid"]
+		destParticipantId := vars["dpid"]
+		meterId := vars["mid"]
+
+		if sourceParticipantId == destParticipantId {
+			http.Error(w, "source and destination participant ids are identical", http.StatusBadRequest)
+			return
+		}
+
+		if err := database.MoveMeteringPoint(tenant, claims.Username, sourceParticipantId, destParticipantId, meterId); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		respondWithJSON(w, http.StatusAccepted, map[string]string{"status": "ok"})
+	}
 }
 
 // updateMeteringPointPartialRequest is the JSON body accepted by the

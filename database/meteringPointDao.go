@@ -213,6 +213,54 @@ func FindActiveMeteringByIds(tenant string, meterIds []string) ([]*model.Meterin
 	return points, nil
 }
 
+// MoveMeteringPoint re-parents a metering point from one participant
+// to another within the same tenant. The change is wrapped in a
+// transaction; modifiedBy/modifiedAt are stamped to track the operation.
+//
+// Use case: a metering point was wired to the wrong participant on
+// import and needs to be re-assigned without disturbing its history.
+func MoveMeteringPoint(tenant, username, sourceParticipantId, destParticipantId, meterId string) error {
+	db, err := GetDBXConnection()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	tx, err := db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		} else {
+			_ = tx.Commit()
+		}
+	}()
+
+	statement, _, err := pgDialect.Update(TABLE_METERINGPOINT).
+		Set(goqu.Record{
+			"participant_id": destParticipantId,
+			"modifiedBy":     username,
+			"modifiedAt":     time.Now(),
+		}).
+		Where(goqu.Ex{
+			"tenant":            goqu.Op{"eq": tenant},
+			"metering_point_id": goqu.Op{"eq": meterId},
+			"participant_id":    goqu.Op{"eq": sourceParticipantId},
+		}).
+		ToSQL()
+	if err != nil {
+		return err
+	}
+
+	if _, err = tx.Exec(statement); err != nil {
+		log.WithField("SQL", "UPDATE").Errorf("Stmt: %v", statement)
+		return err
+	}
+	return nil
+}
+
 // MeteringPointRevoke marks a metering point as revoked for the given
 // tenant. inactiveSince records the consent end date; status is set
 // to model.REVOKED. Returns nil on success or a wrapped error if the
