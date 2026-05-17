@@ -70,7 +70,7 @@ func updateEEG() middleware.JWTHandlerFunc {
 
 func getTariff() middleware.JWTHandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
-		tariff, err := database.GetTariff(tenant)
+		tariff, err := database.GetTariff(database.GetDBXConnection, tenant)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

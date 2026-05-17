@@ -38,9 +38,9 @@ func GetDBXConnection() (*sqlx.DB, error) {
 
 var pgDialect = goqu.Dialect("postgres")
 
-func GetTariff(tenant string) ([]model.Tariff, error) {
+func GetTariff(dbOpen OpenDbXConnection, tenant string) ([]model.Tariff, error) {
 
-	db, err := GetDBXConnection()
+	db, err := dbOpen()
 	if err != nil {
 		return nil, err
 	}
