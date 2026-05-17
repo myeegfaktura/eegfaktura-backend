@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/eegfaktura/eegfaktura-backend/model"
@@ -182,4 +183,65 @@ func MeteringPointsSetStatus(dbOpen OpenDbXConnection, tenant string, status mod
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// MeteringPointRevoke marks a metering point as revoked for the given
+// tenant. inactiveSince records the consent end date; status is set
+// to model.REVOKED. Returns nil on success or a wrapped error if the
+// update failed.
+func MeteringPointRevoke(tenant, meterId string, inactiveSince time.Time) error {
+	db, err := GetDBXConnection()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	statement, _, _ := goqu.Update(TABLE_METERINGPOINT).
+		Set(goqu.Record{
+			"status":        model.REVOKED,
+			"inactiveSince": inactiveSince,
+		}).
+		Where(goqu.Ex{
+			"tenant":            goqu.Op{"eq": tenant},
+			"metering_point_id": goqu.Op{"eq": meterId},
+		}).
+		ToSQL()
+
+	if _, err = db.Exec(statement); err != nil {
+		log.WithField("SQL", "UPDATE").Errorf("Stmt: %v", statement)
+		return err
+	}
+	return nil
+}
+
+// UpdateMeteringPointPartial applies a partial update to a metering
+// point row. The values map carries the columns to update (already
+// in their DB-column names). modifiedBy and modifiedAt are added
+// automatically.
+func UpdateMeteringPointPartial(tenant, username, participantId, meterId string, values map[string]interface{}) error {
+	db, err := GetDBXConnection()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	values["modifiedBy"] = username
+	values["modifiedAt"] = time.Now()
+
+	statement, _, err := pgDialect.Update(TABLE_METERINGPOINT).Set(values).
+		Where(goqu.Ex{
+			"tenant":            goqu.Op{"eq": tenant},
+			"metering_point_id": goqu.Op{"eq": meterId},
+			"participant_id":    goqu.Op{"eq": participantId},
+		}).
+		ToSQL()
+	if err != nil {
+		return err
+	}
+
+	if _, err = db.Exec(statement); err != nil {
+		log.WithField("SQL", "UPDATE").Errorf("Stmt: %v", statement)
+		return err
+	}
+	return nil
 }
