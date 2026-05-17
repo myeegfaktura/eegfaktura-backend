@@ -52,14 +52,17 @@ type StatusType string
 
 const (
 	NEW      StatusType = "NEW"
-	PENDING  StatusType = "PENDING"
-	APPROVED StatusType = "APPROVED"
+	INIT     StatusType = "INIT"     // request initiated, before grid-provider answer
+	PENDING  StatusType = "PENDING"  // answer message from grid-provider was received
+	APPROVED StatusType = "APPROVED" // participant accepted in the grid-operator portal
 	ACTIVE   StatusType = "ACTIVE"
 	INACTIVE StatusType = "INACTIVE"
 	REJECTED StatusType = "REJECTED"
 	REVOKED  StatusType = "REVOKED"
 	INVALID  StatusType = "INVALID"
 	ARCHIVED StatusType = "ARCHIVED"
+	ABORTED  StatusType = "ABORTED"
+	RESTORE  StatusType = "RESTORE"
 )
 
 type MeteringPoint struct {
