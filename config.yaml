@@ -5,6 +5,9 @@ database:
   user: "postgresuser"
   password: "postgresPW"
   dbname: "postgresdb"
+  maxOpenConns: 20
+  maxIdleConns: 25
+  connMaxLifetime: "5m"
 
 oidc:
   issuer_url: "https://auth.eegfaktura-dev.duckdns.org/realms/EEGFaktura"
