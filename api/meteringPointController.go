@@ -335,16 +335,8 @@ func createMeteringPoint() middleware.JWTHandlerFunc {
 			}
 
 			if eeg.Online {
-				ebmsMessage := model.EbmsMessage{
-					Sender:      strings.ToUpper(tenant),
-					Receiver:    strings.ToUpper(eeg.GridOperator),
-					MessageCode: model.EBMS_ONLINE_REG_INIT,
-					EcId:        eeg.CommunityId,
-					Meter:       &model.Meter{MeteringPoint: m.MeteringPoint, Direction: m.Direction},
-				}
-
 				log.WithField("tenant", tenant).Infof("Start Meteringpoint %s registration", m.MeteringPoint)
-				if err = mqttclient.SendEbmsMessage(ebmsMessage); err != nil {
+				if err = mqttclient.RegistrationForParticipation(eeg, &m, nil); err != nil {
 					respondWithError(w, http.StatusInternalServerError, err.Error())
 					return
 				}
@@ -435,16 +427,12 @@ func registerMeteringPoint() middleware.JWTHandlerFunc {
 		log.WithField("tenant", tenant).Infof("register Meter:  %v ", request)
 
 		if eeg.Online && meterExistsInParticipant {
-			ebmsMessage := model.EbmsMessage{
-				Sender:      strings.ToUpper(tenant),
-				Receiver:    strings.ToUpper(eeg.GridOperator),
-				MessageCode: model.EBMS_ONLINE_REG_INIT,
-				EcId:        eeg.CommunityId,
-				Meter:       &model.Meter{MeteringPoint: request.MeteringPoint, Direction: request.Direction},
+			meter := &model.MeteringPoint{
+				MeteringPoint: request.MeteringPoint,
+				Direction:     request.Direction,
 			}
-
 			log.WithField("tenant", tenant).Infof("Start Meteringpoint %s registration", request.MeteringPoint)
-			if err = mqttclient.SendEbmsMessage(ebmsMessage); err != nil {
+			if err = mqttclient.RegistrationForParticipation(eeg, meter, nil); err != nil {
 				respondWithError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
