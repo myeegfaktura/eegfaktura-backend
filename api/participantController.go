@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/eegfaktura/eegfaktura-backend/api/middleware"
 	"github.com/eegfaktura/eegfaktura-backend/database"
@@ -149,18 +148,8 @@ func confirmParticipant() middleware.JWTHandlerFunc {
 
 		if eeg.Online {
 			for _, m := range participant.MeteringPoint {
-				ebmsMessage := model.EbmsMessage{
-					Sender: strings.ToUpper(tenant),
-					//Sender: strings.ToUpper("sepp.gaug"),
-					Receiver: strings.ToUpper(eeg.GridOperator),
-					//Receiver:    strings.ToUpper("obermueller.peter"),
-					MessageCode: model.EBMS_ONLINE_REG_INIT,
-					EcId:        eeg.CommunityId,
-					Meter:       &model.Meter{MeteringPoint: m.MeteringPoint, Direction: m.Direction},
-				}
-
 				log.WithField("tenant", tenant).Infof("Start Meteringpoint %s registration", m.MeteringPoint)
-				if err = mqttclient.SendEbmsMessage(ebmsMessage); err != nil {
+				if err = mqttclient.RegistrationForParticipation(eeg, m, nil); err != nil {
 					respondWithError(w, http.StatusInternalServerError, err.Error())
 					return
 				}

@@ -76,7 +76,12 @@ func Unsubscribe(subscriptions ...model.Subscriptions) error {
 	return MqttBrokerNotStarted
 }
 
-func SendEbmsMessage(msg model.EbmsMessage) error {
+// SendEbmsMessage dispatches an EBMS message to the configured MQTT
+// broker. Indirected through a package-level var so tests can swap in
+// a capture-mock without touching the real broker — see how the
+// ebmsProcessProcessor helpers use the `dispatch` var for the same
+// reason.
+var SendEbmsMessage = func(msg model.EbmsMessage) error {
 	if messageBroker != nil {
 		messageBroker.Outbound <- msg
 
