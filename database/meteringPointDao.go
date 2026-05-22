@@ -101,25 +101,6 @@ func RemoveMeteringPoint(dbOpen OpenDbXConnection, tenant, participantId, meterI
 	return err
 }
 
-func ActivateMeteringPoints(tenant string, meterId []string) error {
-	db, err := GetDBXConnection()
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	statement, _, _ := goqu.Update(TABLE_METERINGPOINT).
-		Set(goqu.Record{"status": "ACTIVE"}).
-		Where(goqu.Ex{
-			"tenant":            goqu.Op{"eq": tenant},
-			"metering_point_id": goqu.Op{"eq": meterId},
-		}).
-		ToSQL()
-	_, err = db.Exec(statement)
-
-	return err
-}
-
 func GetParticipantByMeteringPoint(dbOpen OpenDbXConnection, tenant, meteringPointId string) (*model.EegParticipant, error) {
 	db, err := dbOpen()
 	if err != nil {
