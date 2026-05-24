@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/pborman/uuid"
+	"gopkg.in/guregu/null.v4"
 )
 
 type BillingPeriod string
@@ -34,7 +35,7 @@ type Tariff struct {
 	AccountGrossAmount int             `json:"accountGrossAmount,string"  db:"accountGrossAmount"`
 	ParticipantFee     int             `json:"participantFee,string" db:"participantFee"`
 	BaseFee            int             `json:"baseFee,string" db:"baseFee"`
-	BusinessNr         int             `json:"businessNr,string" db:"businessNr"`
+	BusinessNr         null.Int        `json:"businessNr" db:"businessNr"`
 	CentPerKWh         int             `json:"centPerKWh,string" db:"centPerKWh"`
 	FreeKWh            int             `json:"freeKWh,string" db:"freeKWh"`
 	Discount           int             `json:"discount,string"`

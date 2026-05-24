@@ -16,7 +16,7 @@ func TestAddTariff(t *testing.T) {
 
 	// id-Spalte wird seit AddTariff() den UUID Go-seitig setzt als
 	// String-Literal eingefügt (war früher DEFAULT/serverseitig).
-	stmt := "INSERT INTO (.+) VALUES \\(0, 0, 0, 'monthly', 0, 12, 0, 100, '[0-9a-fA-F-]+', 'Sepp', 0, 'sepp', '', FALSE, 0, 1\\)"
+	stmt := "INSERT INTO (.+) VALUES \\(0, 0, 0, 'monthly', NULL, 12, 0, 100, '[0-9a-fA-F-]+', 'Sepp', 0, 'sepp', '', FALSE, 0, 1\\)"
 
 	mockDb.Mock.ExpectExec(stmt).WillReturnResult(sqlmock.NewResult(1, 1))
 
