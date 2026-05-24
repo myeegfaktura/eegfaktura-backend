@@ -36,6 +36,13 @@ func ImportMeteringPoints(tx *sql.Tx, tenant, participantId string, point []*mod
 }
 
 func saveMeteringPoint(tx *sql.Tx, meteringEntry []meteringEntryType) error {
+	// Goqu's Insert(...).Rows([]) emits "INSERT INTO ... DEFAULT VALUES"
+	// which violates the metering_point.metering_point_id NOT-NULL
+	// constraint. A participant created with no meters is a valid case
+	// (e.g. POST /api/participant with body.meters=[]).
+	if len(meteringEntry) == 0 {
+		return nil
+	}
 	statement, _, _ := pgDialect.Insert(TABLE_METERINGPOINT).Rows(meteringEntry).ToSQL()
 	log.Debugf("Register Meterings: %+v", statement)
 	_, err := tx.Exec(statement)
