@@ -29,3 +29,22 @@ grpc-provider:
 
 services:
   mail-server: "localhost:9093"
+
+# EBMS-Schema-Version pro Process-Code (entspricht der EbMsMessageType-
+# Konstanten in model/mqtt.go). Wird beim Bau jeder ausgehenden
+# EBMS-Message ins messageCodeVersion-Feld geschrieben; eda-comm
+# (xp-adapter) wertet das aus, um eine bestimmte XSD-Variante zu
+# wählen. Fehlt ein Key, schickt das Backend kein Version-Feld und
+# eda-comm fällt auf seine hardcoded Default-Version zurück.
+#
+# Werte 1:1 aus dem prod-vfeeg-backend v0.3.05-Stand übernommen.
+eda-process-versions:
+  ANFORDERUNG_PT: "03.00"
+  ANFORDERUNG_ECON: "02.30"
+  ANFORDERUNG_ECOF: "02.20"
+  ANFORDERUNG_CPF: "01.00"
+  ANFORDERUNG_ECP: "02.00"
+  ANFORDERUNG_ECC: "01.20"
+  ANFORDERUNG_CCMO: "01.20"
+  ANFORDERUNG_GN: "03.12"
+  AUFHEBUNG_CCMS: "01.10"
