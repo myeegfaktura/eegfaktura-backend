@@ -28,7 +28,7 @@ func TestUpdateEeg(t *testing.T) {
 	eegJson := `{
             "id": "TE100100",
             "name": "T-VIERE",
-            "businessNr": 123456789,
+            "businessNr": "123456789",
             "area": "",
             "legal": "verein",
             "operatorName": "Netz OOE",
