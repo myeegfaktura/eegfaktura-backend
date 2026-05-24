@@ -200,7 +200,7 @@ echo "=== writing report to $OUT_REPORT ==="
         echo "$MISSING_FILES"
         echo '```'
         echo
-        echo "_Known caveat: \`graph/generated/*\` entries (bool.go, string.go, context_field.go, oneshot.go, dtomodel.go, eegmodel.go, registration_model.go etc.) are gqlgen output. Prod uses gqlgen v0.17.90+ which splits the codegen across multiple files; the fork uses an older gqlgen that emits one monolithic \`generated.go\`. These are not source-code gaps — they would auto-appear on a gqlgen version bump + \`go generate\`._"
+        echo "_Known caveat: \`graph/generated/{bool,string,context_field,oneshot,eegmodel}.go\` are NOT gqlgen output — fork and prod both use gqlgen v0.17.90, and the follow-schema layout produces \`<schema>.generated.go\` per \`.graphqls\` file, not per Go type. These are hand-coded companion files in prod's gqlgen output directory (likely custom scalar marshalers / model bindings / OneShot override). Per ADR-0006 Klasse C (revised 2026-05-24), they are deferred until a concrete use-case surfaces. \`model/{dtomodel,registration_model}.go\` are unclassified domain artifacts — needs separate backfill analysis._"
         echo
     fi
 
