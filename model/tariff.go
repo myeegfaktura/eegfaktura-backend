@@ -24,22 +24,31 @@ const (
 )
 
 type Tariff struct {
-	Id                 uuid.UUID       `json:"id" goqu:"defaultifempty"`
-	Version            int             `json:"version" db:"version"`
-	Type               TariffModelType `json:"type"`
-	Name               string          `json:"name"`
-	BillingPeriod      string          `json:"billingPeriod" db:"billingPeriod"`
-	UseVat             bool            `json:"useVat" db:"useVat"`
-	VatInPercent       int             `json:"vatInPercent,string" db:"vatInPercent"`
-	AccountNetAmount   int             `json:"accountNetAmount,string" db:"accountNetAmount"`
-	AccountGrossAmount int             `json:"accountGrossAmount,string"  db:"accountGrossAmount"`
-	ParticipantFee     int             `json:"participantFee,string" db:"participantFee"`
-	BaseFee            int             `json:"baseFee,string" db:"baseFee"`
-	BusinessNr         null.Int        `json:"businessNr" db:"businessNr"`
-	CentPerKWh         int             `json:"centPerKWh,string" db:"centPerKWh"`
-	FreeKWh            int             `json:"freeKWh,string" db:"freeKWh"`
-	Discount           int             `json:"discount,string"`
+	Id                  uuid.UUID       `json:"id" goqu:"defaultifempty"`
+	Version             int             `json:"version" db:"version"`
+	Type                TariffModelType `json:"type"`
+	Name                string          `json:"name"`
+	BillingPeriod       string          `json:"billingPeriod" db:"billingPeriod"`
+	UseVat              bool            `json:"useVat" db:"useVat"`
+	VatInPercent        int             `json:"vatInPercent" db:"vatInPercent"`
+	AccountNetAmount    int             `json:"accountNetAmount" db:"accountNetAmount"`
+	AccountGrossAmount  int             `json:"accountGrossAmount"  db:"accountGrossAmount"`
+	ParticipantFee      int             `json:"participantFee" db:"participantFee"`
+	BaseFee             int             `json:"baseFee" db:"baseFee"`
+	BusinessNr          null.Int        `json:"businessNr" db:"businessNr"`
+	CentPerKWh          int             `json:"centPerKWh" db:"centPerKWh"`
+	// FreeKWh and Discount exist in base.tariff but prod-vfeeg-backend
+	// does not emit them in the GET response. omitempty drops them when
+	// zero — typical state for newly-imported tariffs.
+	FreeKWh             int             `json:"freeKWh,omitempty" db:"freeKWh"`
+	Discount            int             `json:"discount,omitempty"`
+	// Fields added to match prod-image v0.3.05 response shape (#45).
+	UseMeteringPointFee bool            `json:"useMeteringPointFee" db:"useMeteringPointFee"`
+	MeteringPointFee    null.Float      `json:"meteringPointFee" db:"meteringPointFee"`
+	MeteringPointVat    null.Int        `json:"meteringPointVat" db:"meteringPointVat"`
+	InactiveSince       null.Time       `json:"inactiveSince" db:"inactiveSince"`
 }
+
 
 //func (t Tariff) PrepareType() Tariff {
 //	switch t.Type {

@@ -24,7 +24,7 @@ func GetTariff(dbOpen OpenDbXConnection, tenant string) ([]model.Tariff, error) 
 	defer db.Close()
 
 	tariff := []model.Tariff{}
-	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh" `+
+	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat", "inactiveSince" `+
 		`FROM base.activetariff WHERE tenant = $1`, tenant)
 	if err == sql.ErrNoRows {
 		return []model.Tariff{}, nil
@@ -46,7 +46,7 @@ func GetTariffHistory(dbOpen OpenDbXConnection, tenant, id string) ([]model.Tari
 	defer db.Close()
 
 	tariff := []model.Tariff{}
-	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh" `+
+	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat", "inactiveSince" `+
 		`FROM base.tariff WHERE tenant = $1 AND id = $2 ORDER BY version DESC`, tenant, id)
 	if err == sql.ErrNoRows {
 		return []model.Tariff{}, nil
