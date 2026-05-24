@@ -22,8 +22,10 @@ func TestGetTariff(t *testing.T) {
 		"id", "name", "billingPeriod", "useVat", "vatInPercent",
 		"accountNetAmount", "accountGrossAmount", "participantFee", "baseFee",
 		"businessNr", "version", "type", "centPerKWh", "discount", "freeKWh",
+		"useMeteringPointFee", "meteringPointFee", "meteringPointVat", "inactiveSince",
 	}).
-		AddRow("bd427cac-c6a7-49b1-915e-c7eeb215bb5d", "Sepp", "monthly", false, 0, 0, 0, 0, 0, 0, 1, "", 12, 0, 100)
+		AddRow("bd427cac-c6a7-49b1-915e-c7eeb215bb5d", "Sepp", "monthly", false, 0, 0, 0, 0, 0, nil, 1, "", 12, 0, 100,
+			false, nil, nil, nil)
 
 	mockDb.Mock.ExpectQuery(`SELECT .* FROM base\.activetariff WHERE tenant = \$1`).
 		WithArgs("TE100100").
