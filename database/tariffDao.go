@@ -24,7 +24,13 @@ func GetTariff(dbOpen OpenDbXConnection, tenant string) ([]model.Tariff, error) 
 	defer db.Close()
 
 	tariff := []model.Tariff{}
-	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat", "inactiveSince" `+
+	// `inactiveSince` is intentionally omitted from this SELECT: the
+	// base.activetariff VIEW (status='ACTIVE') doesn't expose it because
+	// active tariffs by definition have NULL there. The Tariff struct
+	// still carries the field (zero-value null.Time scans as NULL),
+	// so the JSON response keeps emitting "inactiveSince":null —
+	// matching prod-image v0.3.05's shape for the active-list endpoint.
+	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat" `+
 		`FROM base.activetariff WHERE tenant = $1`, tenant)
 	if err == sql.ErrNoRows {
 		return []model.Tariff{}, nil
