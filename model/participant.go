@@ -26,7 +26,7 @@ type EegParticipant struct {
 	MeteringPoint         []*MeteringPoint `json:"meters" db:"-" goqu:"skipinsert"`
 	TariffId              null.String      `json:"tariffId" db:"tariffId" goqu:"skipinsert"`
 	Status                StatusType       `json:"status" goqu:"defaultifempty"`
-	Version               int              `json:"version" goqu:"defaultifempty"`
+	Version               int              `json:"version,omitempty" goqu:"defaultifempty"`
 	CreatedBy             string           `json:"createdBy,omitempty" db:"createdBy"`
 }
 
