@@ -64,13 +64,13 @@ func TestGetEeg(t *testing.T) {
 	require.NoError(t, err)
 
 	row := sqlmock.NewRows([]string{
-		"name", "businessNr", "legal", "gridoperator_name", "communityId",
+		"name", "description", "businessNr", "legal", "gridoperator_name", "communityId",
 		"gridoperator_code", "rcNumber", "allocationMode", "settlementInterval",
 		"providerBusinessNr", "street", "streetNumber", "zip", "city",
 		"phone", "email", "website", "iban", "owner", "sepa",
 		"taxNumber", "vatNumber", "online", "contactPerson",
 	}).AddRow(
-		"T-VIERE", 123456789, "verein", "Netz OOE", "AT00300000000TC100100000000000001",
+		"T-VIERE", "test eeg", "123456789", "verein", "Netz OOE", "AT00300000000TC100100000000000001",
 		"AT003000", "TE100100", "DYNAMIC", "MONTHLY",
 		nil, "Solarstraße", "9", "1111", "Solarcity",
 		"0043-664-1234567", "test-eeg@gmx.at", "test-eeg.at",
