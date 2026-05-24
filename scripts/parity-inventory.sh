@@ -200,7 +200,11 @@ echo "=== writing report to $OUT_REPORT ==="
         echo "$MISSING_FILES"
         echo '```'
         echo
-        echo "_Known caveat: \`graph/generated/{bool,string,context_field,oneshot,eegmodel}.go\` are NOT gqlgen output — fork and prod both use gqlgen v0.17.90, and the follow-schema layout produces \`<schema>.generated.go\` per \`.graphqls\` file, not per Go type. These are hand-coded companion files in prod's gqlgen output directory (likely custom scalar marshalers / model bindings / OneShot override). Per ADR-0006 Klasse C (revised 2026-05-24), they are deferred until a concrete use-case surfaces. \`model/{dtomodel,registration_model}.go\` are unclassified domain artifacts — needs separate backfill analysis._"
+        echo "_Known caveats (per ADR-0006, revised 2026-05-24):_"
+        echo "_- \`graph/generated/{bool,string,context_field,oneshot,eegmodel}.go\` are NOT gqlgen output — fork and prod both use gqlgen v0.17.90, and the follow-schema layout produces \`<schema>.generated.go\` per \`.graphqls\` file, not per Go type. These are hand-coded companion files in prod's gqlgen output directory (likely custom scalar marshalers / model bindings / OneShot override). Klasse C — deferred until a concrete use-case surfaces._"
+        echo "_- \`model/dtomodel.go\` (\`MasterDataMeter\`, \`MasterDataParticipant\`, \`ConvertToDbMeter\`, \`StandardizeMeteringPointList\`) — DTOs that feed prod's gRPC \`MasterData\` service. Klasse D dependency, deferred with the rest of the gRPC stack._"
+        echo "_- \`model/registration_model.go\` (\`RegisterEegRequest\` JSON-shape with 5 custom \`UnmarshalJSON\` for enum-string→int) — supports HTTP-JSON ingestion of registration. Fork's \`RegisterService.Register\` consumes \`proto.RegisterEegRequest\` directly; no HTTP-JSON registration entrypoint exists in the fork. Klasse D dependency, deferred._"
+        echo "_- \`model/errors.go\` (\`VfeegError{Code,Err}\` + \`Wrap\` + 25 init-time \`PartialWrap\` wrappers across packages) — NOT a parity gap. The fork uses stdlib \`errors.New\`/\`errors.Is\` throughout. Backfill only when adopting prod's error-as-LogMessage observability convention, which itself has no consumer in the fork._"
         echo
     fi
 
