@@ -40,10 +40,14 @@ jobs:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           # generate Docker tags based on the following events/attributes
+          # `sha-<7chars>` is the immutable per-commit tag — manifests pin
+          # to it so a re-build with the same image won't silently change
+          # what's deployed (see feedback_image_tag_rotation.md).
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=pr
+            type=sha,prefix=sha-,format=short
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
