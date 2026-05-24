@@ -3,13 +3,19 @@
 package gmodel
 
 type EegModel struct {
-	Tenant             *string `json:"tenant"`
-	SettlementInterval *string `json:"settlementInterval"`
-	SepaActiv          *bool   `json:"sepaActiv"`
+	Tenant             *string `json:"tenant,omitempty"`
+	SettlementInterval *string `json:"settlementInterval,omitempty"`
+	SepaActiv          *bool   `json:"sepaActiv,omitempty"`
 }
 
 type Link struct {
 	ID      string `json:"id"`
 	Title   string `json:"title"`
 	Address string `json:"address"`
+}
+
+type Mutation struct {
+}
+
+type Query struct {
 }
