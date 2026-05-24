@@ -280,3 +280,63 @@ func TestNewEbmsMessageSetsEcId(t *testing.T) {
 		t.Errorf("EcId not propagated: %q", msg.EcId)
 	}
 }
+
+// captureVersionLookup replaces edaProcessVersionFor with a fixed
+// map-backed lookup so the tests do not depend on viper global state.
+// Returns a cleanup that restores the original lookup.
+func captureVersionLookup(t *testing.T, versions map[model.EbMsMessageType]string) func() {
+	t.Helper()
+	orig := edaProcessVersionFor
+	edaProcessVersionFor = func(code model.EbMsMessageType) string {
+		return versions[code]
+	}
+	return func() { edaProcessVersionFor = orig }
+}
+
+func TestNewEbmsMessageSetsConfiguredMessageCodeVersion(t *testing.T) {
+	cleanup := captureVersionLookup(t, map[model.EbMsMessageType]string{
+		model.EBMS_ONLINE_REG_INIT: "02.30",
+	})
+	defer cleanup()
+
+	msg := newEbmsMessage(sampleEeg(), sampleMeter(), model.EBMS_ONLINE_REG_INIT)
+	if msg.MessageCodeVersion != "02.30" {
+		t.Errorf("MessageCodeVersion = %q, want %q", msg.MessageCodeVersion, "02.30")
+	}
+}
+
+func TestNewEbmsMessageLeavesVersionEmptyWhenUnconfigured(t *testing.T) {
+	cleanup := captureVersionLookup(t, map[model.EbMsMessageType]string{
+		// EBMS_ONLINE_REG_INIT is intentionally missing here — the
+		// expectation is an empty string (= omitempty in JSON) so that
+		// eda-comm falls back to its own hard-coded default version.
+	})
+	defer cleanup()
+
+	msg := newEbmsMessage(sampleEeg(), sampleMeter(), model.EBMS_ONLINE_REG_INIT)
+	if msg.MessageCodeVersion != "" {
+		t.Errorf("MessageCodeVersion = %q, want empty (fallback to eda-comm default)", msg.MessageCodeVersion)
+	}
+}
+
+func TestRegistrationForParticipationPropagatesConfiguredVersion(t *testing.T) {
+	cleanup := captureVersionLookup(t, map[model.EbMsMessageType]string{
+		model.EBMS_ONLINE_REG_INIT: "02.00",
+	})
+	defer cleanup()
+
+	cap, cleanupDispatch := captureDispatch(t)
+	defer cleanupDispatch()
+
+	if err := RegistrationForParticipation(sampleEeg(), sampleMeter(), nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cap.msg == nil {
+		t.Fatal("dispatch was not called")
+	}
+	// 02.00 hits the eda-comm CMRequestRegistrationOnline switch's
+	// Some("02.00") branch — verify the value is on the wire.
+	if cap.msg.MessageCodeVersion != "02.00" {
+		t.Errorf("MessageCodeVersion = %q, want %q", cap.msg.MessageCodeVersion, "02.00")
+	}
+}

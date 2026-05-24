@@ -85,14 +85,19 @@ type EbmsMessage struct {
 	Sender         string          `json:"sender"`
 	Receiver       string          `json:"receiver"`
 	MessageCode    EbMsMessageType `json:"messageCode"`
-	RequestId      string          `json:"requestId,omitempty"`
-	Meter          *Meter          `json:"meter,omitempty"`
-	EcId           string          `json:"ecId,omitempty"` // Community ID
-	ResponseData   []ResponseData  `json:"responseData,omitempty"`
-	Energy         *Energy         `json:"energy,omitempty"`
-	Timeline       *Timeline       `json:"timeline,omitempty"`
-	MeterList      []Meter         `json:"meterList,omitempty"`
-	ErrorMessage   string          `json:"errorMessage,omitempty"`
+	// MessageCodeVersion lets the receiver (eda-comm / xp-adapter) pick
+	// a specific EBMS schema version for the outgoing XML. Populated
+	// from `eda-process-versions.<MessageCode>` in viper; absent means
+	// the receiver falls back to its hard-coded default version.
+	MessageCodeVersion string          `json:"messageCodeVersion,omitempty"`
+	RequestId          string          `json:"requestId,omitempty"`
+	Meter              *Meter          `json:"meter,omitempty"`
+	EcId               string          `json:"ecId,omitempty"` // Community ID
+	ResponseData       []ResponseData  `json:"responseData,omitempty"`
+	Energy             *Energy         `json:"energy,omitempty"`
+	Timeline           *Timeline       `json:"timeline,omitempty"`
+	MeterList          []Meter         `json:"meterList,omitempty"`
+	ErrorMessage       string          `json:"errorMessage,omitempty"`
 }
 
 func (ebms EbmsMessage) Meters() []string {

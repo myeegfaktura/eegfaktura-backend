@@ -15,12 +15,28 @@
 package mqttclient
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/eegfaktura/eegfaktura-backend/model"
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
+
+// edaProcessVersionFor returns the configured EBMS schema version for
+// the given message code, or the empty string if no override is
+// configured. eda-comm consumes this value as
+// `EbMsMessage.messageCodeVersion` and uses it to pick a specific
+// XML-schema variant when serialising the outgoing EBMS message; an
+// empty value lets eda-comm fall back to its own hard-coded default
+// version.
+//
+// Indirected through a package-level var so tests can inject a fixed
+// lookup without touching viper global state.
+var edaProcessVersionFor = func(code model.EbMsMessageType) string {
+	return viper.GetString(fmt.Sprintf("eda-process-versions.%s", string(code)))
+}
 
 // RegistrationForParticipation sends an online-registration request
 // for the given metering point to the grid operator. If a non-nil
@@ -133,12 +149,13 @@ func sendRegistration(eeg *model.Eeg, meter *model.MeteringPoint, from *int64, c
 // that target the receiver as a whole rather than a specific point.
 func newEbmsMessage(eeg *model.Eeg, meter *model.MeteringPoint, code model.EbMsMessageType) model.EbmsMessage {
 	msg := model.EbmsMessage{
-		ConversationId: uuid.New(),
-		RequestId:      uuid.New(),
-		Sender:         strings.ToUpper(eeg.RcNumber),
-		Receiver:       receiverFor(eeg, meter),
-		MessageCode:    code,
-		EcId:           eeg.CommunityId,
+		ConversationId:     uuid.New(),
+		RequestId:          uuid.New(),
+		Sender:             strings.ToUpper(eeg.RcNumber),
+		Receiver:           receiverFor(eeg, meter),
+		MessageCode:        code,
+		MessageCodeVersion: edaProcessVersionFor(code),
+		EcId:               eeg.CommunityId,
 	}
 	if meter != nil {
 		msg.Meter = &model.Meter{
