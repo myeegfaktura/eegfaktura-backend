@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eegfaktura/eegfaktura-backend/database"
-	"github.com/eegfaktura/eegfaktura-backend/model"
+	"github.com/eegfaktura/eegfaktura-backend/factory"
 	protobuf "github.com/eegfaktura/eegfaktura-backend/proto"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"gopkg.in/guregu/null.v4"
 )
 
 type SendMailFunc func(tenant, to, subject string, body *bytes.Buffer, attachments []*Attachment) error
@@ -119,50 +118,7 @@ type RegisterService struct {
 
 func (r *RegisterService) Register(ctx context.Context, eeg *protobuf.RegisterEegRequest) (*protobuf.RegisteredEegReply, error) {
 
-	getOptionalField := func(field *string) null.String {
-		if field == nil {
-			return null.String{}
-		}
-		return null.StringFrom(*field)
-	}
-
-	newEeg := model.Eeg{
-		Id:                 eeg.RcNumber,
-		Name:               eeg.Name,
-		Description:        eeg.Description,
-		BusinessNr:         null.Int{},
-		Area:               model.AreaType(eeg.Area.String()),
-		Legal:              eeg.Legal.String(),
-		OperatorName:       eeg.GridName,
-		CommunityId:        eeg.CommunityId,
-		GridOperator:       eeg.GridId,
-		RcNumber:           eeg.RcNumber,
-		AllocationMode:     eeg.Allocation.String(),
-		SettlementInterval: eeg.SettelmentInterval.String(),
-		ProviderBusinessNr: null.Int{},
-		TaxNumber:          null.StringFrom(eeg.TaxNumber),
-		VatNumber:          null.StringFrom(eeg.VatNumber),
-		EegAddress: model.EegAddress{
-			Street:       eeg.Street,
-			StreetNumber: eeg.Street,
-			Zip:          eeg.Street,
-			City:         eeg.Street,
-		},
-		AccountInfo: model.AccountInfo{
-			Iban:  null.StringFrom(eeg.Iban),
-			Owner: null.StringFrom(eeg.Owner),
-			Sepa:  eeg.Sepa,
-		},
-		Contact: model.Contact{
-			Phone: getOptionalField(eeg.Phone),
-			Email: null.StringFrom(eeg.Email),
-		},
-		Optionals: model.Optionals{
-			Website: getOptionalField(eeg.Web),
-		},
-		Periods: nil,
-		Online:  eeg.Online,
-	}
+	newEeg := factory.GetEegFromRegisterEeg(eeg)
 
 	//fmt.Printf("Register EEG: %+v\n", newEeg)
 	db, err := database.GetDBXConnection()
