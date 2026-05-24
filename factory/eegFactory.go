@@ -30,7 +30,7 @@ func GetEegFromRegisterEeg(eeg *protobuf.RegisterEegRequest) model.Eeg {
 		Id:                 eeg.RcNumber,
 		Name:               eeg.Name,
 		Description:        eeg.Description,
-		BusinessNr:         null.Int{},
+		BusinessNr:         null.String{},
 		Area:               model.AreaType(eeg.Area.String()),
 		Legal:              eeg.Legal.String(),
 		OperatorName:       eeg.GridName,
