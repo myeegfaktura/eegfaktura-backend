@@ -30,7 +30,13 @@ func GetTariff(dbOpen OpenDbXConnection, tenant string) ([]model.Tariff, error) 
 	// still carries the field (zero-value null.Time scans as NULL),
 	// so the JSON response keeps emitting "inactiveSince":null —
 	// matching prod-image v0.3.05's shape for the active-list endpoint.
-	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat" `+
+	// COALESCE for `discount` and `freeKWh`: prod-image stores these as
+	// NULL for newly-imported tariffs that never had a value set. Our Go
+	// model uses plain `int` with `omitempty`, so scanning NULL fails
+	// ("converting NULL to int is unsupported"). Mapping NULL → 0 in the
+	// SQL keeps the model untouched and produces JSON identical to prod,
+	// where omitempty drops the field when zero.
+	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", COALESCE(discount, 0) AS discount, COALESCE("freeKWh", 0) AS "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat" `+
 		`FROM base.activetariff WHERE tenant = $1`, tenant)
 	if err == sql.ErrNoRows {
 		return []model.Tariff{}, nil
@@ -52,7 +58,8 @@ func GetTariffHistory(dbOpen OpenDbXConnection, tenant, id string) ([]model.Tari
 	defer db.Close()
 
 	tariff := []model.Tariff{}
-	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", discount, "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat", "inactiveSince" `+
+	// COALESCE on discount/freeKWh — same rationale as in GetTariff.
+	err = db.Select(&tariff, `SELECT id, name, "billingPeriod", "useVat", "vatInPercent", "accountNetAmount", "accountGrossAmount", "participantFee", "baseFee", "businessNr", version, type, "centPerKWh", COALESCE(discount, 0) AS discount, COALESCE("freeKWh", 0) AS "freeKWh", "useMeteringPointFee", "meteringPointFee", "meteringPointVat", "inactiveSince" `+
 		`FROM base.tariff WHERE tenant = $1 AND id = $2 ORDER BY version DESC`, tenant, id)
 	if err == sql.ErrNoRows {
 		return []model.Tariff{}, nil
