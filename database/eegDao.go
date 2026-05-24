@@ -23,10 +23,10 @@ func GetEeg(dbOpen OpenDbXConnection, tenant string) (*model.Eeg, error) {
 
 	var eeg model.Eeg
 	err = db.QueryRow(""+
-		"SELECT name, \"businessNr\", legal, gridoperator_name, \"communityId\", gridoperator_code, \"rcNumber\", \"allocationMode\", "+
+		"SELECT name, description, \"businessNr\", legal, gridoperator_name, \"communityId\", gridoperator_code, \"rcNumber\", \"allocationMode\", "+
 		"\"settlementInterval\", \"providerBusinessNr\", street, \"streetNumber\", zip, city, phone, email, website, iban, owner, sepa, "+
 		"\"taxNumber\", \"vatNumber\", online, \"contactPerson\" FROM base.eeg WHERE tenant = $1", tenant).
-		Scan(&eeg.Name, &eeg.BusinessNr, &eeg.Legal, &eeg.OperatorName,
+		Scan(&eeg.Name, &eeg.Description, &eeg.BusinessNr, &eeg.Legal, &eeg.OperatorName,
 			&eeg.CommunityId, &eeg.GridOperator, &eeg.RcNumber,
 			&eeg.AllocationMode, &eeg.SettlementInterval, &eeg.ProviderBusinessNr,
 			&eeg.Street, &eeg.StreetNumber, &eeg.Zip, &eeg.City, &eeg.Contact.Phone, &eeg.Contact.Email,
