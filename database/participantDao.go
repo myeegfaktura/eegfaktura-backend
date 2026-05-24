@@ -250,6 +250,12 @@ func RegisterParticipant(dbConn OpenDbXConnection, tenant, username string, part
 	participant.Status = model.PENDING
 	participant.Id = uuid.NewUUID()
 	participant.ParticipantSince = time.Now()
+	// Reflect createdBy on the model so the HTTP response carries it
+	// (matches prod-image's POST /api/participant body shape, parity
+	// gap surfaced by ADR-0007 test 04-participant-create). With
+	// `json:"createdBy,omitempty"` an empty value would be omitted —
+	// prod always emits it because the value is set.
+	participant.CreatedBy = username
 	return saveParticipant(db, tenant, username, participant, RegisterMeteringPoints)
 }
 
