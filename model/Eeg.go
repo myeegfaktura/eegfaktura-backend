@@ -66,9 +66,13 @@ type Contact struct {
 }
 
 type AccountInfo struct {
-	Iban  null.String `json:"iban"`
-	Owner null.String `json:"owner"`
-	Sepa  bool        `json:"sepa"`
+	Iban        null.String `json:"iban"`
+	Owner       null.String `json:"owner"`
+	BankName    null.String `json:"bankName" db:"bankName"`
+	CreditorId  null.String `json:"creditorId" db:"creditor_id"`
+	Bic         null.String `json:"bic" db:"bic"`
+	Sepa        bool        `json:"sepa"`
+	BankPurpose null.String `json:"bankPurpose" db:"bankPurpose"`
 }
 
 type Optionals struct {
