@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/jjeffery/civil"
 	"github.com/pborman/uuid"
 	"gopkg.in/guregu/null.v4"
 	"time"
@@ -36,8 +37,12 @@ type ContactInfo struct {
 }
 
 type BankInfo struct {
-	Iban  null.String `json:"iban"`
-	Owner null.String `json:"owner"`
+	Iban             null.String    `json:"iban"`
+	Owner            null.String    `json:"owner"`
+	BankName         null.String    `json:"bankName" db:"bankName"`
+	MandateReference null.String    `json:"mandateReference" db:"mandate_reference"`
+	MandateDate      civil.NullDate `json:"mandateDate,omitempty" db:"mandate_date"`
+	SepaDirectDebit  null.String    `json:"sepaDirectDebit" db:"sepa_direct_debit"`
 }
 
 type DirectionType string

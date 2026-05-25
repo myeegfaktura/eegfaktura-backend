@@ -14,6 +14,7 @@ require (
 	github.com/golang/glog v1.2.5
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
+	github.com/jjeffery/civil v0.0.0-20180928055925-c3aeb7792580
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/mitchellh/mapstructure v1.5.0
