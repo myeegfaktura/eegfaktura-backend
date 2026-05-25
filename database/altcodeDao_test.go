@@ -70,6 +70,7 @@ func TestGetEeg(t *testing.T) {
 		"gridoperator_code", "rcNumber", "allocationMode", "settlementInterval",
 		"providerBusinessNr", "street", "streetNumber", "zip", "city",
 		"phone", "email", "website", "iban", "owner", "sepa",
+		"bankName", "creditor_id", "bic", "bankPurpose",
 		"taxNumber", "vatNumber", "online", "contactPerson",
 	}).AddRow(
 		"T-VIERE", "test eeg", "123456789", "verein", "Netz OOE", "AT00300000000TC100100000000000001",
@@ -77,6 +78,7 @@ func TestGetEeg(t *testing.T) {
 		nil, "Solarstraße", "9", "1111", "Solarcity",
 		"0043-664-1234567", "test-eeg@gmx.at", "test-eeg.at",
 		"AT011234000000321321", "T-VIERE", false,
+		"Sparkasse", "AT12ZZZ00000012345", "GIBAATWWXXX", "Mitgliedsbeitrag",
 		"11 123/4567", nil, false, "Max Sonnenmann",
 	)
 	mockDb.Mock.ExpectQuery(`SELECT name, .* FROM base\.eeg WHERE tenant = \$1`).
