@@ -62,7 +62,7 @@ func TestProtcolCrMsgHandler(t *testing.T) {
 	err = json.Unmarshal([]byte(jsonString), &msg.Payload)
 	require.NoError(t, err)
 
-	historyValue := map[string]interface{}{"meter": msg.Payload.Meter.MeteringPoint, "from": msg.Payload.Energy.Start, "to": msg.Payload.Energy.End}
+	historyValue := map[string]interface{}{"meter": msg.Payload.Meter.MeteringPoint, "from": msg.Payload.Energy[0].Start, "to": msg.Payload.Energy[0].End}
 	recorder.Mock.On("saveHistory", "TE1000001", model.EBMS_ENERGY_FILE_RESPONSE, "AT003000202208191420233640008300242", "ADMIN", "IN", model.CR_MSG, historyValue)
 
 	protocolCrMsgHandler(msg, recorder)

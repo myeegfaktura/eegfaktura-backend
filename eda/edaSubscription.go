@@ -88,8 +88,17 @@ func getSubsriptions() []model.Subscriptions {
 func protocolCrMsgHandler(msg model.SubscribeMessage, recorder EdaRecording) {
 	logrus.Printf("Handle Subscriptions: %+v", msg.Protocol)
 
-	if msg.Payload.Meter != nil && msg.Payload.Energy != nil {
-		historyValue := map[string]interface{}{"meter": msg.Payload.Meter.MeteringPoint, "from": msg.Payload.Energy.Start, "to": msg.Payload.Energy.End}
+	if msg.Payload.Meter != nil && len(msg.Payload.Energy) > 0 {
+		from, to := msg.Payload.Energy[0].Start, msg.Payload.Energy[0].End
+		for _, e := range msg.Payload.Energy[1:] {
+			if e.Start < from {
+				from = e.Start
+			}
+			if e.End > to {
+				to = e.End
+			}
+		}
+		historyValue := map[string]interface{}{"meter": msg.Payload.Meter.MeteringPoint, "from": from, "to": to}
 		_ = recorder.saveHistory(msg.Tenant, msg.MessageCode, msg.Payload.ConversationId, "ADMIN", "IN", msg.Protocol, historyValue)
 	}
 	return
