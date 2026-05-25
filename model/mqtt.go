@@ -71,12 +71,19 @@ type Meter struct {
 	Activation int64 `json:"activation,omitempty"`
 	// PartFact is the integer partition factor (0–100) requested for
 	// the meter. Only populated for EBMS_REQ_CHANGE_PARTFACT payloads.
-	PartFact int `json:"partFact,omitempty"`
+	PartFact      int     `json:"partFact,omitempty"`
+	From          int64   `json:"from,omitempty"`
+	To            int64   `json:"to,omitempty"`
+	PlantCategory string  `json:"plantCategory,omitempty"`
+	Share         float64 `json:"share,omitempty"`
+	ConsentID     string  `json:"consentId,omitempty"`
 }
 
 type ResponseData struct {
 	MeteringPoint string  `json:"meteringPoint,omitempty"`
 	ResponseCode  []int16 `json:"responseCode"`
+	ConsentEnd    int64   `json:"consentEnd,omitempty"`
+	ConsentId     string  `json:"consentId,omitempty"`
 }
 
 type EbmsMessage struct {
@@ -93,11 +100,15 @@ type EbmsMessage struct {
 	RequestId          string          `json:"requestId,omitempty"`
 	Meter              *Meter          `json:"meter,omitempty"`
 	EcId               string          `json:"ecId,omitempty"` // Community ID
+	EcType             string          `json:"ecType,omitempty"`
+	EcDisModel         string          `json:"ecDisModel,omitempty"`
 	ResponseData       []ResponseData  `json:"responseData,omitempty"`
 	Energy             *Energy         `json:"energy,omitempty"`
 	Timeline           *Timeline       `json:"timeline,omitempty"`
 	MeterList          []Meter         `json:"meterList,omitempty"`
 	ErrorMessage       string          `json:"errorMessage,omitempty"`
+	ConsentEnd         int64           `json:"consentEnd,omitempty"`
+	Reason             string          `json:"reason,omitempty"`
 }
 
 func (ebms EbmsMessage) Meters() []string {
