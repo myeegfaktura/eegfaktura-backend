@@ -71,21 +71,28 @@ const (
 )
 
 type MeteringPoint struct {
-	MeteringPoint   string        `json:"meteringPoint" db:"metering_point_id"`
-	Transformer     null.String   `json:"transformer,omitempty"`
-	Direction       DirectionType `json:"direction,omitempty"`
-	Status          StatusType    `json:"status,omitempty"`
-	TariffId        null.String   `json:"tariffId" db:"tariff_id"`
-	EquipmentNumber null.String   `json:"equipmentNumber,omitempty" db:"equipmentNumber"`
-	EquipmentName   null.String   `json:"equipmentName,omitempty" db:"equipmentName"`
-	InverterId      null.String   `json:"inverterId,omitempty" db:"inverterid"`
-	Street          null.String   `json:"street,omitempty"`
-	StreetNumber    null.String   `json:"streetNumber,omitempty" db:"streetNumber"`
-	City            null.String   `json:"city,omitempty"`
-	Zip             null.String   `json:"zip,omitempty"`
-	RegisteredSince time.Time     `json:"registeredSince" db:"registeredSince"`
-	ModifiedAt      time.Time     `json:"modifiedAt" db:"modifiedAt"`
-	ModifiedBy      null.String   `json:"modifiedBy" db:"modifiedBy"`
+	MeteringPoint    string        `json:"meteringPoint" db:"metering_point_id"`
+	ParticipantId    string        `json:"participantId,omitempty" db:"participant_id" goqu:"skipupdate,skipinsert"`
+	ConsentId        null.String   `json:"consentId" db:"consent_id"`
+	Transformer      null.String   `json:"transformer,omitempty"`
+	Direction        DirectionType `json:"direction,omitempty"`
+	Status           StatusType    `json:"status,omitempty"`
+	StatusCode       null.Int      `json:"statusCode,omitempty" db:"statusCode"`
+	TariffId         null.String   `json:"tariffId" db:"tariff_id"`
+	EquipmentNumber  null.String   `json:"equipmentNumber,omitempty" db:"equipmentNumber"`
+	EquipmentName    null.String   `json:"equipmentName,omitempty" db:"equipmentName"`
+	InverterId       null.String   `json:"inverterId,omitempty" db:"inverterid"`
+	Street           null.String   `json:"street,omitempty"`
+	StreetNumber     null.String   `json:"streetNumber,omitempty" db:"streetNumber"`
+	City             null.String   `json:"city,omitempty"`
+	Zip              null.String   `json:"zip,omitempty"`
+	RegisteredSince  time.Time     `json:"registeredSince" db:"registeredSince"`
+	ModifiedAt       time.Time     `json:"modifiedAt" db:"modifiedAt"`
+	ModifiedBy       null.String   `json:"modifiedBy" db:"modifiedBy"`
+	GridOperatorId   null.String   `json:"gridOperatorId,omitempty" db:"grid_operator_id"`
+	GridOperatorName null.String   `json:"gridOperatorName,omitempty" db:"grid_operator_name"`
+	ProcessState     string        `json:"processState,omitempty" db:"process_state"`
+	AllocationFactor null.Float    `json:"allocationFactor,omitempty" db:"allocation_factor"`
 }
 
 // ChangePartitionFactorRequest is one entry in the payload of the
