@@ -82,6 +82,12 @@ func getSubsriptions() []model.Subscriptions {
 				protocolCmRevImpHandler(msg, recorder)
 			},
 		},
+		{
+			Protocol: model.CM_REV_SP,
+			Handler: func(msg model.SubscribeMessage) {
+				protocolCmRevImpHandler(msg, recorder)
+			},
+		},
 	}
 }
 
