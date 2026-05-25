@@ -24,19 +24,23 @@ const (
 )
 
 type Tariff struct {
-	Id                  uuid.UUID       `json:"id" goqu:"defaultifempty"`
-	Version             int             `json:"version" db:"version"`
-	Type                TariffModelType `json:"type"`
-	Name                string          `json:"name"`
-	BillingPeriod       string          `json:"billingPeriod" db:"billingPeriod"`
-	UseVat              bool            `json:"useVat" db:"useVat"`
-	VatInPercent        int             `json:"vatInPercent" db:"vatInPercent"`
-	AccountNetAmount    int             `json:"accountNetAmount" db:"accountNetAmount"`
-	AccountGrossAmount  int             `json:"accountGrossAmount"  db:"accountGrossAmount"`
-	ParticipantFee      int             `json:"participantFee" db:"participantFee"`
+	Id                   uuid.UUID       `json:"id" goqu:"defaultifempty"`
+	Version              int             `json:"version" db:"version"`
+	Type                 TariffModelType `json:"type"`
+	Name                 string          `json:"name"`
+	BillingPeriod        string          `json:"billingPeriod" db:"billingPeriod"`
+	UseVat               bool            `json:"useVat" db:"useVat"`
+	VatSupplementaryText string          `json:"vatSupplementaryText,omitempty" db:"vatSupplementaryText"`
+	VatInPercent         int             `json:"vatInPercent" db:"vatInPercent"`
+	AccountNetAmount     int             `json:"accountNetAmount" db:"accountNetAmount"`
+	AccountGrossAmount   int             `json:"accountGrossAmount"  db:"accountGrossAmount"`
+	// CentPerKWh and ParticipantFee carry fractional cents in prod
+	// (DB columns: double precision / real). Storing as int truncates
+	// (e.g. 12.5 → 12).
+	ParticipantFee      float32         `json:"participantFee" db:"participantFee"`
 	BaseFee             int             `json:"baseFee" db:"baseFee"`
 	BusinessNr          null.Int        `json:"businessNr" db:"businessNr"`
-	CentPerKWh          int             `json:"centPerKWh" db:"centPerKWh"`
+	CentPerKWh          float32         `json:"centPerKWh" db:"centPerKWh"`
 	// FreeKWh and Discount exist in base.tariff but prod-vfeeg-backend
 	// does not emit them in the GET response. omitempty drops them when
 	// zero — typical state for newly-imported tariffs.
