@@ -20,8 +20,9 @@ func TestAddTariff(t *testing.T) {
 	// inactiveSince / meteringPointFee / meteringPointVat / useMeteringPointFee
 	// — they're inserted between 'id' and 'name' (i/m..) and between 'type'
 	// and 'useVat' respectively. New struct zero-values are NULL for the
-	// three nullable + FALSE for the bool.
-	stmt := "INSERT INTO (.+) VALUES \\(0, 0, 0, 'monthly', NULL, 12, 0, 100, '[0-9a-fA-F-]+', NULL, NULL, NULL, 'Sepp', 0, 'sepp', '', FALSE, FALSE, 0, 1\\)"
+	// three nullable + FALSE for the bool. With prod parity, vatSupplementaryText
+	// joins between vatInPercent and version as zero-string ''.
+	stmt := "INSERT INTO (.+) VALUES \\(0, 0, 0, 'monthly', NULL, 12, 0, 100, '[0-9a-fA-F-]+', NULL, NULL, NULL, 'Sepp', 0, 'sepp', '', FALSE, FALSE, 0, '', 1\\)"
 
 	mockDb.Mock.ExpectExec(stmt).WillReturnResult(sqlmock.NewResult(1, 1))
 
