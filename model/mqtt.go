@@ -1,5 +1,7 @@
 package model
 
+import "encoding/json"
+
 type EbMsMessageType string
 
 const (
@@ -96,19 +98,49 @@ type EbmsMessage struct {
 	// a specific EBMS schema version for the outgoing XML. Populated
 	// from `eda-process-versions.<MessageCode>` in viper; absent means
 	// the receiver falls back to its hard-coded default version.
-	MessageCodeVersion string          `json:"messageCodeVersion,omitempty"`
-	RequestId          string          `json:"requestId,omitempty"`
-	Meter              *Meter          `json:"meter,omitempty"`
-	EcId               string          `json:"ecId,omitempty"` // Community ID
-	EcType             string          `json:"ecType,omitempty"`
-	EcDisModel         string          `json:"ecDisModel,omitempty"`
-	ResponseData       []ResponseData  `json:"responseData,omitempty"`
-	Energy             *Energy         `json:"energy,omitempty"`
-	Timeline           *Timeline       `json:"timeline,omitempty"`
-	MeterList          []Meter         `json:"meterList,omitempty"`
-	ErrorMessage       string          `json:"errorMessage,omitempty"`
-	ConsentEnd         int64           `json:"consentEnd,omitempty"`
-	Reason             string          `json:"reason,omitempty"`
+	MessageCodeVersion string         `json:"messageCodeVersion,omitempty"`
+	RequestId          string         `json:"requestId,omitempty"`
+	Meter              *Meter         `json:"meter,omitempty"`
+	EcId               string         `json:"ecId,omitempty"` // Community ID
+	EcType             string         `json:"ecType,omitempty"`
+	EcDisModel         string         `json:"ecDisModel,omitempty"`
+	ResponseData       []ResponseData `json:"responseData,omitempty"`
+	Energy             []Energy       `json:"energy,omitempty"`
+	Timeline           *Timeline      `json:"timeline,omitempty"`
+	MeterList          []Meter        `json:"meterList,omitempty"`
+	ErrorMessage       string         `json:"errorMessage,omitempty"`
+	ConsentEnd         int64          `json:"consentEnd,omitempty"`
+	Reason             string         `json:"reason,omitempty"`
+}
+
+// UnmarshalJSON accepts both the legacy single-object `energy` shape
+// (`*Energy`-equivalent) used by older fork-internal MQTT senders and
+// the prod-image slice shape (`[]Energy`) that can carry multiple
+// energy blocks per message. Legacy single-object is normalised into
+// a one-element slice so downstream code never branches on shape.
+func (ebms *EbmsMessage) UnmarshalJSON(b []byte) error {
+	type alias EbmsMessage
+	type rawMsg struct {
+		*alias
+		Energy json.RawMessage `json:"energy,omitempty"`
+	}
+	r := rawMsg{alias: (*alias)(ebms)}
+	if err := json.Unmarshal(b, &r); err != nil {
+		return err
+	}
+	if len(r.Energy) == 0 || string(r.Energy) == "null" {
+		ebms.Energy = nil
+		return nil
+	}
+	if r.Energy[0] == '[' {
+		return json.Unmarshal(r.Energy, &ebms.Energy)
+	}
+	var one Energy
+	if err := json.Unmarshal(r.Energy, &one); err != nil {
+		return err
+	}
+	ebms.Energy = []Energy{one}
+	return nil
 }
 
 func (ebms EbmsMessage) Meters() []string {
