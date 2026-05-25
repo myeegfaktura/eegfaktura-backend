@@ -36,6 +36,7 @@ const (
 	EC_REQ_ONL EdaProtocol = "EC_REQ_ONL"
 	CM_REV_IMP EdaProtocol = "CM_REV_IMP"
 	CM_REV_CUS EdaProtocol = "CM_REV_CUS"
+	CM_REV_SP  EdaProtocol = "CM_REV_SP"
 	ERROR      EdaProtocol = "ERROR"
 )
 
