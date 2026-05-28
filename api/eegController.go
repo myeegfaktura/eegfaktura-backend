@@ -30,8 +30,31 @@ func InitEegRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mux.Rou
 	s.HandleFunc("/sync/meterpoint", jwtWrapper(syncMeterpointEda())).Methods("POST")
 	s.HandleFunc("/import/masterdata", jwtWrapper(uploadMasterData())).Methods("POST")
 	s.HandleFunc("/notifications/{id}", jwtWrapper(notifications())).Methods("GET")
+	s.HandleFunc("/user/get-user", jwtWrapper(getUser())).Methods("GET")
 
 	return r
+}
+
+// getUser returns the list of {tenant, name} entries the caller can see
+// for the tenant they currently selected. The JWT middleware has already
+// asserted that the tenant header value is in the claim's tenants[] list,
+// so we trust `tenant` as-is and read the EEG name from base.eeg.
+//
+// Prod (vfeeg-backend:v0.3.05) emits an array even though there is always
+// one entry — keeps the wire shape forward-compatible with a future
+// multi-tenant-per-call API. We match that shape so the frontend's
+// RTK-Query type `{tenant: string, name: string}[]` works unchanged.
+func getUser() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		respondWithJSON(w, http.StatusOK, []map[string]string{
+			{"tenant": tenant, "name": eeg.Name},
+		})
+	}
 }
 
 func getEEG() middleware.JWTHandlerFunc {
