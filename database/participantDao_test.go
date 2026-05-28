@@ -101,6 +101,11 @@ func TestGetParticipant(t *testing.T) {
 			time.Now(), "admin", time.Now(), "NEW", "Energieweg", "12a", uuid.New(), "", "1234")
 	mockDb.Mock.ExpectQuery("SELECT (.+) FROM \"base\".\"meteringpoint\" (.+)").WillReturnRows(meterRows)
 
+	// Follow-up SELECT by populateMeterStates for the activation window.
+	meterStateRows := sqlmock.NewRows([]string{"metering_point_id", "activesince", "inactivesince"}).
+		AddRow("AT0020001110000010011111001", nil, nil)
+	mockDb.Mock.ExpectQuery("SELECT \"metering_point_id\", \"activesince\", \"inactivesince\" FROM \"base\".\"meteringpoint\" (.+)").WillReturnRows(meterStateRows)
+
 	participants, err := GetParticipant(mockDb.OpenMockDb, "RC100298")
 	assert.NoError(t, err)
 
