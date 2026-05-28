@@ -127,6 +127,12 @@ func registerParticipant() middleware.JWTHandlerFunc {
 
 		err = database.RegisterParticipant(database.GetDBXConnection, tenant, claims.Username, &t)
 		if err != nil {
+			// Try structured pq-error first so the frontend can i18n-map
+			// well-known constraint violations (e.g. duplicate meter id);
+			// fall back to the existing plain-text 400 for unknown errors.
+			if tryRespondPqError(w, err) {
+				return
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
