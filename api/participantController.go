@@ -23,6 +23,7 @@ func InitParticipantRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) 
 	s.HandleFunc("/{id}", jwtWrapper(updateParticipant())).Methods("PUT")
 	s.HandleFunc("/v2/{id}", jwtWrapper(updateParticipantPartial())).Methods("PUT")
 	s.HandleFunc("/{id}", jwtWrapper(archiveParticipant())).Methods("DELETE")
+	s.HandleFunc("/v2/{id}", jwtWrapper(archiveParticipantV2())).Methods("DELETE")
 	s.HandleFunc("/{id}/confirm", jwtWrapper(confirmParticipant())).Methods("POST")
 
 	return r
@@ -246,5 +247,23 @@ func archiveParticipant() middleware.JWTHandlerFunc {
 			return
 		}
 		respondWithJSON(w, http.StatusAccepted, map[string]interface{}{"status": "ok"})
+	}
+}
+
+// archiveParticipantV2 is the prod-shape DELETE handler the web frontend
+// calls via `DELETE /participant/v2/{id}`. It performs the same archive
+// (soft-delete) as the v1 endpoint above, but answers `202 {id}` so the
+// frontend's RTK-Query mutation can drive `adapter.removeOne(action.payload.id)`
+// from the response — see participant.reducer.ts:140.
+func archiveParticipantV2() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		idStr := vars["id"]
+
+		if err := database.ArchiveParticipant(database.GetDBXConnection, claims.Username, idStr); err != nil {
+			respondWithJSON(w, http.StatusBadRequest, map[string]interface{}{"id": 500, "error": err.Error()})
+			return
+		}
+		respondWithJSON(w, http.StatusAccepted, map[string]string{"id": idStr})
 	}
 }
