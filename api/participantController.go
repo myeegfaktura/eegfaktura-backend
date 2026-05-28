@@ -21,6 +21,7 @@ func InitParticipantRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) 
 	s.HandleFunc("", jwtWrapper(fetchParticipant())).Methods("GET")
 	s.HandleFunc("", jwtWrapper(registerParticipant())).Methods("POST")
 	s.HandleFunc("/{id}", jwtWrapper(updateParticipant())).Methods("PUT")
+	s.HandleFunc("/v2/{id}", jwtWrapper(updateParticipantPartial())).Methods("PUT")
 	s.HandleFunc("/{id}", jwtWrapper(archiveParticipant())).Methods("DELETE")
 	s.HandleFunc("/{id}/confirm", jwtWrapper(confirmParticipant())).Methods("POST")
 
@@ -36,6 +37,61 @@ func fetchParticipant() middleware.JWTHandlerFunc {
 		}
 		respondWithJSON(w, 200, participant)
 	}
+}
+
+// updateParticipantPartial handles PUT /participant/v2/{id} with the
+// {path, value} body shape the frontend's participant.service.ts:24
+// emits. It routes each field-edit to the right child table
+// (participant / address / contactdetail / bankaccount) via the
+// per-table column whitelist in database/participantPartialUpdate.go.
+//
+// Error shape matches prod (vfeeg-backend:v0.3.05):
+//   500 {error:{code:1102,error,message}}  for unknown paths
+//   500 {error:{code:1103,error,message}}  for DB-rejected updates
+// The frontend's errorMiddleware in store.ts:43 keys its i18n lookup off
+// the rejected-thunk's error.message; matching the shape avoids the
+// "Rejected_participant_update" fallback the testers reported on
+// 2026-05-28.
+func updateParticipantPartial() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		vars := mux.Vars(r)
+		participantId := vars["id"]
+
+		var body struct {
+			Path  string      `json:"path"`
+			Value interface{} `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			respondWithPartialUpdateError(w, &database.PartialUpdateError{Code: 1103, Message: err.Error()})
+			return
+		}
+
+		if err := database.UpdateParticipantPartial(database.GetDBXConnection, tenant, participantId, body.Path, body.Value); err != nil {
+			if pe, ok := err.(*database.PartialUpdateError); ok {
+				respondWithPartialUpdateError(w, pe)
+				return
+			}
+			respondWithPartialUpdateError(w, &database.PartialUpdateError{Code: 1103, Message: err.Error()})
+			return
+		}
+
+		participant, err := database.QueryParticipant(database.GetDBXConnection, participantId)
+		if err != nil {
+			respondWithPartialUpdateError(w, &database.PartialUpdateError{Code: 1103, Message: err.Error()})
+			return
+		}
+		respondWithJSON(w, http.StatusOK, participant)
+	}
+}
+
+func respondWithPartialUpdateError(w http.ResponseWriter, pe *database.PartialUpdateError) {
+	respondWithJSON(w, http.StatusInternalServerError, map[string]interface{}{
+		"error": map[string]interface{}{
+			"code":    pe.Code,
+			"error":   pe.Message,
+			"message": pe.Message,
+		},
+	})
 }
 
 func updateParticipant() middleware.JWTHandlerFunc {
