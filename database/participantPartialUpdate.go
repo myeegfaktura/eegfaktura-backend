@@ -131,15 +131,14 @@ func unknownPath(path string) error {
 }
 
 func updateColumn(db *sqlx.DB, table string, where goqu.Ex, col string, value interface{}) error {
-	stmt, args, err := pgDialect.Update(table).
-		Prepared(true).
+	stmt, _, err := pgDialect.Update(table).
 		Set(goqu.Record{col: value}).
 		Where(where).
 		ToSQL()
 	if err != nil {
 		return &PartialUpdateError{Code: 1103, Message: err.Error()}
 	}
-	res, err := db.Exec(stmt, args...)
+	res, err := db.Exec(stmt)
 	if err != nil {
 		return &PartialUpdateError{Code: 1103, Message: err.Error()}
 	}
