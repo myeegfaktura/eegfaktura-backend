@@ -12,8 +12,7 @@ func TestUpdateParticipantPartial_TopLevel(t *testing.T) {
 	mockDb, err := GetDatabaseMock()
 	require.NoError(t, err)
 
-	mockDb.Mock.ExpectExec(`UPDATE "base"\."participant" SET "firstname"=\? WHERE .*"id" = \?.*"tenant" = \?`).
-		WithArgs("NewName", "11111111-1111-1111-1111-111111111111", "TE100300").
+	mockDb.Mock.ExpectExec(`UPDATE "base"\."participant" SET "firstname"='NewName' WHERE .*"id" = '11111111-1111-1111-1111-111111111111'.*"tenant" = 'TE100300'`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = UpdateParticipantPartial(mockDb.OpenMockDb, "TE100300", "11111111-1111-1111-1111-111111111111", "firstname", "NewName")
@@ -24,8 +23,7 @@ func TestUpdateParticipantPartial_BankAccountMandateDate(t *testing.T) {
 	mockDb, err := GetDatabaseMock()
 	require.NoError(t, err)
 
-	mockDb.Mock.ExpectExec(`UPDATE "base"\."bankaccount" SET "mandate_date"=\? WHERE \("participant_id" = \?\)`).
-		WithArgs("2026-05-28", "22222222-2222-2222-2222-222222222222").
+	mockDb.Mock.ExpectExec(`UPDATE "base"\."bankaccount" SET "mandate_date"='2026-05-28' WHERE \("participant_id" = '22222222-2222-2222-2222-222222222222'\)`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = UpdateParticipantPartial(mockDb.OpenMockDb, "TE100300", "22222222-2222-2222-2222-222222222222", "accountInfo.mandateDate", "2026-05-28")
@@ -36,8 +34,7 @@ func TestUpdateParticipantPartial_BillingAddressCity(t *testing.T) {
 	mockDb, err := GetDatabaseMock()
 	require.NoError(t, err)
 
-	mockDb.Mock.ExpectExec(`UPDATE "base"\."address" SET "city"=\? WHERE .*"participant_id" = \?.*"type" = \?`).
-		WithArgs("Linz", "33333333-3333-3333-3333-333333333333", "BILLING").
+	mockDb.Mock.ExpectExec(`UPDATE "base"\."address" SET "city"='Linz' WHERE .*"participant_id" = '33333333-3333-3333-3333-333333333333'.*"type" = 'BILLING'`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = UpdateParticipantPartial(mockDb.OpenMockDb, "TE100300", "33333333-3333-3333-3333-333333333333", "billingAddress.city", "Linz")
@@ -48,8 +45,7 @@ func TestUpdateParticipantPartial_ContactEmail(t *testing.T) {
 	mockDb, err := GetDatabaseMock()
 	require.NoError(t, err)
 
-	mockDb.Mock.ExpectExec(`UPDATE "base"\."contactdetail" SET "email"=\? WHERE \("participant_id" = \?\)`).
-		WithArgs("new@x.de", "44444444-4444-4444-4444-444444444444").
+	mockDb.Mock.ExpectExec(`UPDATE "base"\."contactdetail" SET "email"='new@x.de' WHERE \("participant_id" = '44444444-4444-4444-4444-444444444444'\)`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = UpdateParticipantPartial(mockDb.OpenMockDb, "TE100300", "44444444-4444-4444-4444-444444444444", "contact.email", "new@x.de")
