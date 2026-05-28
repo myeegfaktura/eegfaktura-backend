@@ -6,9 +6,57 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/eegfaktura/eegfaktura-backend/model"
+	"github.com/jjeffery/civil"
 	"github.com/jmoiron/sqlx"
 	"github.com/pborman/uuid"
 )
+
+// meterStateRow is used to read activesince/inactivesince per meter
+// without forcing them onto the goqu-driven MeteringPoint SELECT — the
+// State field on MeteringPoint is `db:"-"` so goqu does not project
+// these columns. We populate State in a follow-up query to match
+// prod's GET /api/participant payload shape (participantState non-null).
+type meterStateRow struct {
+	MeteringPointId string         `db:"metering_point_id"`
+	ActiveSince     civil.NullDate `db:"activesince"`
+	InactiveSince   civil.NullDate `db:"inactivesince"`
+}
+
+// populateMeterStates issues one SELECT per participant to read the
+// activation window for each meter and attaches the result as
+// `*MeterState` on the matching MeteringPoint. Meters with NULL
+// activesince stay with State=nil — that matches the Go-zero behaviour
+// of prod for un-imported meters.
+func populateMeterStates(db *sqlx.DB, participantId string, meters []*model.MeteringPoint) error {
+	if len(meters) == 0 {
+		return nil
+	}
+	stmt, _, err := pgDialect.From(TABLE_METERINGPOINT).
+		Select("metering_point_id", "activesince", "inactivesince").
+		Where(goqu.C("participant_id").Eq(participantId)).ToSQL()
+	if err != nil {
+		return err
+	}
+	var rows []meterStateRow
+	if err := db.Select(&rows, stmt); err != nil && err != dbsql.ErrNoRows {
+		return err
+	}
+	byMeter := make(map[string]meterStateRow, len(rows))
+	for _, r := range rows {
+		byMeter[r.MeteringPointId] = r
+	}
+	for _, m := range meters {
+		r, ok := byMeter[m.MeteringPoint]
+		if !ok || (!r.ActiveSince.Valid && !r.InactiveSince.Valid) {
+			continue
+		}
+		m.State = &model.MeterState{
+			ActiveSince:   r.ActiveSince,
+			InactiveSince: r.InactiveSince,
+		}
+	}
+	return nil
+}
 
 func GetParticipant(dbConn OpenDbXConnection, tenant string) ([]model.EegParticipant, error) {
 	var participants []model.EegParticipant = []model.EegParticipant{}
@@ -82,6 +130,9 @@ func GetParticipant(dbConn OpenDbXConnection, tenant string) ([]model.EegPartici
 		}
 		if participants[i].MeteringPoint == nil {
 			participants[i].MeteringPoint = []*model.MeteringPoint{}
+		}
+		if err := populateMeterStates(db, p.Id.String(), participants[i].MeteringPoint); err != nil {
+			return []model.EegParticipant{}, err
 		}
 	}
 
@@ -161,6 +212,9 @@ func CompleteParticipant(db *sqlx.DB, p *model.EegParticipant) error {
 	}
 	err = db.Select(&(p.MeteringPoint), sql)
 	if err != nil && err != dbsql.ErrNoRows {
+		return err
+	}
+	if err := populateMeterStates(db, p.Id.String(), p.MeteringPoint); err != nil {
 		return err
 	}
 	return nil
