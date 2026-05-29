@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/eegfaktura/eegfaktura-backend/model"
 	"github.com/golang/glog"
+	"github.com/jjeffery/civil"
 	log "github.com/sirupsen/logrus"
 	"github.com/xuri/excelize/v2"
 	"gopkg.in/guregu/null.v4"
@@ -243,4 +245,311 @@ func transformExcelData(rows *excelize.Rows) []*model.EegParticipant {
 		}
 	}
 	return participants
+}
+
+// ExportMasterdataToExcel builds an .xlsx workbook with two sheets:
+// the EEG master sheet (sheet name = RcNumber) and the participant
+// roster sheet ("Mitglieder", one row per (participant × metering
+// point) tuple). Mirrors prod's vfeeg-backend output so the customer
+// SPA's masterdata download keeps the same shape across stacks.
+func ExportMasterdataToExcel(participants []model.EegParticipant, eeg *model.Eeg, tariffMap map[string]string) (*bytes.Buffer, error) {
+	f := excelize.NewFile()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.WithField("tenant", eeg.Id).WithError(err).Error("Error while closing file")
+		}
+	}()
+
+	if err := generateEegMastersheet(f, eeg); err != nil {
+		return nil, err
+	}
+	if err := generateParticipantMastersheet(f, participants, tariffMap); err != nil {
+		return nil, err
+	}
+
+	_ = f.DeleteSheet("Sheet1")
+	return f.WriteToBuffer()
+}
+
+func generateEegMastersheet(f *excelize.File, eeg *model.Eeg) error {
+	styleId, _ := f.NewStyle(&excelize.Style{Font: &excelize.Font{Size: 10.0}})
+	styleIdHeader, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10.0},
+		Alignment: &excelize.Alignment{Vertical: "top", WrapText: true},
+	})
+	styleIdHeaderTop, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 11.0},
+		Alignment: &excelize.Alignment{Vertical: "top", WrapText: true},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Pattern: 1,
+			Color:   []string{"#cccccc"},
+			Shading: 0,
+		},
+	})
+
+	line := 1
+	sheet := eeg.RcNumber
+	if _, err := f.NewSheet(sheet); err != nil {
+		return err
+	}
+
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{"EEG"})
+	_ = f.SetRowStyle(sheet, 1, 1, styleIdHeaderTop)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		"Kurzname", "Bezeichnung", "Gemeinschafts-ID", "Ponton",
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeader)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		eeg.Name, eeg.Description, eeg.CommunityId, eeg.Online,
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleId)
+
+	line += 2
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{"Netz"})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeaderTop)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		"Netzbetreiber", "Netzbetreiber Name", "Verteilung",
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeader)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		eeg.GridOperator, eeg.OperatorName, eeg.AllocationMode,
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleId)
+
+	line += 2
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{"Kontakt"})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeaderTop)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		"Kontaktperson", "E-Mail", "TelefonNr.", "PLZ", "Wohnort", "Straße", "StraßenNr.", "Web Seite",
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeader)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		eeg.ContactPerson.String, eeg.Email.String, eeg.Phone.String, eeg.Zip, eeg.City, eeg.Street, eeg.StreetNumber, eeg.Website.String,
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleId)
+
+	line += 2
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{"Bankdaten"})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeaderTop)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		"Kontoinhaber", "IBAN", "SEPA",
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeader)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		eeg.Owner.String, eeg.Iban.String, eeg.Sepa,
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleId)
+
+	line += 2
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{"Geschäftliches"})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeaderTop)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		"Rechtsform", "Geschäftsnummer", "Verrechnungsinterval", "Ust.", "SteuerNr.",
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleIdHeader)
+	line += 1
+	_ = f.SetSheetRow(sheet, fmt.Sprintf("A%d", line), &[]interface{}{
+		eeg.Legal, eeg.BusinessNr.String, eeg.SettlementInterval, eeg.VatNumber.String, eeg.TaxNumber.String,
+	})
+	_ = f.SetRowStyle(sheet, line, line, styleId)
+
+	_ = f.SetColWidth(sheet, "A", "B", 25.0)
+	_ = f.SetColWidth(sheet, "C", "C", 35.0)
+	_ = f.SetColWidth(sheet, "D", "H", 20.0)
+
+	return nil
+}
+
+func generateParticipantMastersheet(f *excelize.File, participants []model.EegParticipant, tariffMap map[string]string) error {
+	getTariffName := func(id string) string {
+		name, ok := tariffMap[id]
+		if !ok {
+			return ""
+		}
+		return name
+	}
+
+	getNullDate := func(d civil.NullDate) string {
+		if !d.Valid {
+			return ""
+		}
+		return d.Date.String()
+	}
+
+	styleId, _ := f.NewStyle(&excelize.Style{Font: &excelize.Font{Size: 10.0}})
+	styleDateId, _ := f.NewStyle(&excelize.Style{Font: &excelize.Font{Size: 10.0}, NumFmt: 14})
+	styleIdHeader, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10.0},
+		Alignment: &excelize.Alignment{Vertical: "top", WrapText: true},
+	})
+	styleIdDate, _ := f.NewStyle(&excelize.Style{
+		Font:   &excelize.Font{Size: 10.0},
+		NumFmt: 14,
+	})
+
+	sheet := "Mitglieder"
+	if _, err := f.NewSheet(sheet); err != nil {
+		return err
+	}
+
+	sw, err := f.NewStreamWriter(sheet)
+	if err != nil {
+		return err
+	}
+
+	_ = sw.SetColWidth(1, 1, 5.0)
+	_ = sw.SetColWidth(2, 3, 30.0)
+	colNr, _ := excelize.ColumnNameToNumber("F")
+	_ = sw.SetColWidth(colNr, colNr, 12.0)
+	_ = sw.SetColWidth(colNr+1, colNr+1, 25.0)
+	_ = sw.SetColWidth(colNr+2, colNr+7, 20.0)
+	colNr, _ = excelize.ColumnNameToNumber("O")
+	_ = sw.SetColWidth(colNr, colNr, 20.0)
+	_ = sw.SetColWidth(colNr+1, colNr+1, 12.0)
+	colNr, _ = excelize.ColumnNameToNumber("R")
+	_ = sw.SetColWidth(colNr, colNr+1, 20.0)
+	colNr, _ = excelize.ColumnNameToNumber("Y")
+	_ = sw.SetColWidth(colNr, colNr+1, 32.0)
+	_ = sw.SetColWidth(colNr+3, colNr+3, 8.0)
+	_ = sw.SetColWidth(colNr+4, colNr+4, 20.0)
+	_ = sw.SetColWidth(colNr+6, colNr+6, 18.0)
+	colNr, _ = excelize.ColumnNameToNumber("AI")
+	_ = sw.SetColWidth(colNr, colNr+1, 20.0)
+	_ = sw.SetColWidth(colNr+3, colNr+4, 12.0)
+	_ = sw.SetColWidth(colNr+5, colNr+5, 30.0)
+
+	line := 1
+	_ = sw.SetRow(fmt.Sprintf("A%d", line),
+		[]interface{}{
+			excelize.Cell{Value: "Mit. Nr."},
+			excelize.Cell{Value: "Name 1"},
+			excelize.Cell{Value: "Name 2"},
+			excelize.Cell{Value: "Titel"},
+			excelize.Cell{Value: "Status"},
+			excelize.Cell{Value: "Mitglied seit."},
+			excelize.Cell{Value: "E-Mail"},
+			excelize.Cell{Value: "Telefonnummer"},
+			excelize.Cell{Value: "SteuerNr."},
+			excelize.Cell{Value: "Ust."},
+			excelize.Cell{Value: "IBAN."},
+			excelize.Cell{Value: "Kontoinhaber"},
+			excelize.Cell{Value: "Bankname"},
+			excelize.Cell{Value: "DebitType"},
+			excelize.Cell{Value: "Mandat-Ref."},
+			excelize.Cell{Value: "Mandat-Dat."},
+			excelize.Cell{Value: "PLZ"},
+			excelize.Cell{Value: "Ort"},
+			excelize.Cell{Value: "Straße"},
+			excelize.Cell{Value: "HausNr."},
+			excelize.Cell{Value: ""},
+			excelize.Cell{Value: "EEG-Role"},
+			excelize.Cell{Value: "teilnahme als"},
+			excelize.Cell{Value: "Status"},
+			excelize.Cell{Value: "Mitgliedstarif"},
+			excelize.Cell{Value: "Zählpunkt"},
+			excelize.Cell{Value: "ZP-Status"},
+			excelize.Cell{Value: "ZpNr."},
+			excelize.Cell{Value: "Zählpunktname"},
+			excelize.Cell{Value: "registriert"},
+			excelize.Cell{Value: "Bezugsrichtung"},
+			excelize.Cell{Value: "Teilnahme Fkt."},
+			excelize.Cell{Value: "WechselrichterNr."},
+			excelize.Cell{Value: "PLZ"},
+			excelize.Cell{Value: "Ort"},
+			excelize.Cell{Value: "Straße"},
+			excelize.Cell{Value: "HausNr."},
+			excelize.Cell{Value: "aktiviert"},
+			excelize.Cell{Value: "deaktiviert"},
+			excelize.Cell{Value: "Zp. Tarifname"},
+			excelize.Cell{Value: "Umspannwerk"},
+		}, excelize.RowOpts{StyleID: styleIdHeader, Height: 0.42 * 72})
+	for _, c := range participants {
+		for _, m := range c.MeteringPoint {
+			line = line + 1
+			activeSince, inactiveSince := civil.NullDate{}, civil.NullDate{}
+			if m.State != nil {
+				activeSince = m.State.ActiveSince
+				inactiveSince = m.State.InactiveSince
+			}
+			var mandateDateCell interface{} = ""
+			if c.BankAccount.MandateDate.Valid {
+				mandateDateCell = c.BankAccount.MandateDate.Date
+			}
+			_ = sw.SetRow(fmt.Sprintf("A%d", line),
+				[]interface{}{
+					excelize.Cell{Value: c.ParticipantNumber.String},
+					excelize.Cell{Value: c.FirstName},
+					excelize.Cell{Value: c.LastName},
+					excelize.Cell{Value: joinTitles(c.TitleBefore, c.TitleAfter)},
+					excelize.Cell{Value: string(c.Status)},
+					excelize.Cell{Value: c.ParticipantSince.Format("2006-01-02"), StyleID: styleIdDate},
+					excelize.Cell{Value: c.Contact.Email.String},
+					excelize.Cell{Value: c.Contact.Phone.String},
+					excelize.Cell{Value: c.TaxNumber},
+					excelize.Cell{Value: c.VatNumber},
+					excelize.Cell{Value: c.BankAccount.Iban.String},
+					excelize.Cell{Value: c.BankAccount.Owner.String},
+					excelize.Cell{Value: c.BankAccount.BankName.String},
+					excelize.Cell{Value: c.BankAccount.SepaDirectDebit.String},
+					excelize.Cell{Value: c.BankAccount.MandateReference.String},
+					excelize.Cell{Value: mandateDateCell, StyleID: styleDateId},
+					excelize.Cell{Value: c.BillingAddress.Zip.String},
+					excelize.Cell{Value: c.BillingAddress.City.String},
+					excelize.Cell{Value: c.BillingAddress.Street.String},
+					excelize.Cell{Value: c.BillingAddress.StreetNumber.String},
+					excelize.Cell{Value: c.CompanyRegisterNumber.String},
+					excelize.Cell{Value: c.Role},
+					excelize.Cell{Value: businessRoleLabel(c.BusinessRole)},
+					excelize.Cell{Value: string(c.Status)},
+					excelize.Cell{Value: getTariffName(c.TariffId.String), StyleID: styleDateId},
+					excelize.Cell{Value: m.MeteringPoint},
+					excelize.Cell{Value: m.ProcessState},
+					excelize.Cell{Value: m.EquipmentNumber.String},
+					excelize.Cell{Value: m.EquipmentName.String},
+					excelize.Cell{Value: m.RegisteredSince, StyleID: styleDateId},
+					excelize.Cell{Value: string(m.Direction)},
+					excelize.Cell{Value: fmt.Sprintf("%d %%", m.PartFact)},
+					excelize.Cell{Value: m.InverterId.String},
+					excelize.Cell{Value: m.Zip.String},
+					excelize.Cell{Value: m.City.String},
+					excelize.Cell{Value: m.Street.String},
+					excelize.Cell{Value: m.StreetNumber.String},
+					excelize.Cell{Value: getNullDate(activeSince), StyleID: styleDateId},
+					excelize.Cell{Value: getNullDate(inactiveSince), StyleID: styleDateId},
+					excelize.Cell{Value: getTariffName(m.TariffId.String), StyleID: styleDateId},
+					excelize.Cell{Value: m.Transformer.String},
+				}, excelize.RowOpts{StyleID: styleId})
+		}
+	}
+
+	_ = f.AutoFilter(sheet, "A1:AH10", nil)
+	return sw.Flush()
+}
+
+func joinTitles(before, after string) string {
+	titles := []string{}
+	if before != "" {
+		titles = append(titles, before)
+	}
+	if after != "" {
+		titles = append(titles, after)
+	}
+	return strings.Join(titles, ", ")
+}
+
+func businessRoleLabel(role string) string {
+	if role == "EEG_PRIVATE" {
+		return "Privat"
+	}
+	return "Business"
 }
