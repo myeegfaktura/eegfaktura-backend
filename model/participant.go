@@ -81,7 +81,7 @@ type MeteringPoint struct {
 	TariffId         null.String    `json:"tariff_id,omitempty" db:"tariff_id"`
 	EquipmentNumber  null.String    `json:"equipmentNumber,omitempty" db:"equipmentNumber"`
 	EquipmentName    null.String    `json:"equipmentName,omitempty" db:"equipmentName"`
-	InverterId       null.String    `json:"inverterId,omitempty" db:"inverterid"`
+	InverterId       null.String    `json:"inverterid,omitempty" db:"inverterid"`
 	Street           null.String    `json:"street,omitempty"`
 	StreetNumber     null.String    `json:"streetNumber,omitempty" db:"streetNumber"`
 	City             null.String    `json:"city,omitempty"`
