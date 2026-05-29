@@ -41,6 +41,34 @@ func TestUpdateParticipantPartial_BillingAddressCity(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestUpdateParticipantPartial_BillingAddressInsertsOnMissing(t *testing.T) {
+	mockDb, err := GetDatabaseMock()
+	require.NoError(t, err)
+
+	// First the UPDATE is tried — for imported members it affects 0 rows.
+	mockDb.Mock.ExpectExec(`UPDATE "base"\."address" SET "street"='Linzer Strasse'`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	// …then the INSERT lands a new row with participant_id + type + column.
+	mockDb.Mock.ExpectExec(`INSERT INTO "base"\."address" \("participant_id", "street", "type"\) VALUES \('88888888-8888-8888-8888-888888888888', 'Linzer Strasse', 'BILLING'\)`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = UpdateParticipantPartial(mockDb.OpenMockDb, "TE100300", "88888888-8888-8888-8888-888888888888", "billingAddress.street", "Linzer Strasse")
+	assert.NoError(t, err)
+}
+
+func TestUpdateParticipantPartial_ResidentAddressInsertsOnMissing(t *testing.T) {
+	mockDb, err := GetDatabaseMock()
+	require.NoError(t, err)
+
+	mockDb.Mock.ExpectExec(`UPDATE "base"\."address" SET "streetNumber"='4'`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mockDb.Mock.ExpectExec(`INSERT INTO "base"\."address" \("participant_id", "streetNumber", "type"\) VALUES \('99999999-9999-9999-9999-999999999999', '4', 'RESIDENCE'\)`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	err = UpdateParticipantPartial(mockDb.OpenMockDb, "TE100300", "99999999-9999-9999-9999-999999999999", "residentAddress.streetNumber", "4")
+	assert.NoError(t, err)
+}
+
 func TestUpdateParticipantPartial_ContactEmail(t *testing.T) {
 	mockDb, err := GetDatabaseMock()
 	require.NoError(t, err)

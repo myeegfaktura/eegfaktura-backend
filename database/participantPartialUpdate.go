@@ -96,15 +96,13 @@ func UpdateParticipantPartial(dbConn OpenDbXConnection, tenant, participantId, p
 		if !ok {
 			return unknownPath(path)
 		}
-		return updateColumn(db, "base.address",
-			goqu.Ex{"participant_id": participantId, "type": "BILLING"}, col, value)
+		return updateOrInsertAddressColumn(db, participantId, "BILLING", col, value)
 	case root == "residentAddress", root == "residenceAddress":
 		col, ok := addressColumns[parts[1]]
 		if !ok {
 			return unknownPath(path)
 		}
-		return updateColumn(db, "base.address",
-			goqu.Ex{"participant_id": participantId, "type": "RESIDENCE"}, col, value)
+		return updateOrInsertAddressColumn(db, participantId, "RESIDENCE", col, value)
 	case root == "contact":
 		col, ok := contactColumns[parts[1]]
 		if !ok {
@@ -128,6 +126,43 @@ func unknownPath(path string) error {
 		Code:    1102,
 		Message: fmt.Sprintf("Can not update structure of %s", path),
 	}
+}
+
+// updateOrInsertAddressColumn handles partial updates to base.address, which
+// (unlike participant/contactdetail/bankaccount) does not always have a row
+// per (participant, type). Members imported via the initial bootstrap don't
+// get RESIDENCE/BILLING address rows — the create-flow inserts them only
+// for newly registered members. Without this auto-insert, the first
+// street/city/zip-edit of an imported member fails with 1103.
+func updateOrInsertAddressColumn(db *sqlx.DB, participantId, addressType, col string, value interface{}) error {
+	updateStmt, _, err := pgDialect.Update("base.address").
+		Set(goqu.Record{col: value}).
+		Where(goqu.Ex{"participant_id": participantId, "type": addressType}).
+		ToSQL()
+	if err != nil {
+		return &PartialUpdateError{Code: 1103, Message: err.Error()}
+	}
+	res, err := db.Exec(updateStmt)
+	if err != nil {
+		return &PartialUpdateError{Code: 1103, Message: err.Error()}
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	insertStmt, _, err := pgDialect.Insert("base.address").
+		Rows(goqu.Record{
+			"participant_id": participantId,
+			"type":           addressType,
+			col:              value,
+		}).
+		ToSQL()
+	if err != nil {
+		return &PartialUpdateError{Code: 1103, Message: err.Error()}
+	}
+	if _, err := db.Exec(insertStmt); err != nil {
+		return &PartialUpdateError{Code: 1103, Message: err.Error()}
+	}
+	return nil
 }
 
 func updateColumn(db *sqlx.DB, table string, where goqu.Ex, col string, value interface{}) error {
