@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ func InitEegRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mux.Rou
 	s.HandleFunc("/sync/participants", jwtWrapper(syncParticipantsEda())).Methods("POST")
 	s.HandleFunc("/sync/meterpoint", jwtWrapper(syncMeterpointEda())).Methods("POST")
 	s.HandleFunc("/import/masterdata", jwtWrapper(uploadMasterData())).Methods("POST")
+	s.HandleFunc("/export/masterdata", jwtWrapper(exportMasterdata())).Methods("GET")
 	s.HandleFunc("/notifications/{id}", jwtWrapper(notifications())).Methods("GET")
 	s.HandleFunc("/user/get-user", jwtWrapper(getUser())).Methods("GET")
 
@@ -54,6 +56,50 @@ func getUser() middleware.JWTHandlerFunc {
 		respondWithJSON(w, http.StatusOK, []map[string]string{
 			{"tenant": tenant, "name": eeg.Name},
 		})
+	}
+}
+
+// exportMasterdata streams an .xlsx workbook with two sheets — EEG master
+// data (sheet name = RcNumber) and the participant + meter list (sheet
+// name "Mitglieder"). Wire shape matches prod (vfeeg-backend v0.3.05):
+// Content-Type spreadsheetml.sheet, Content-Disposition + filename header
+// carrying "<tenant>-EEG-Masterdata-<YYYYMMDD>". Frontend consumes via
+// handleDownload in eeg.service.ts:exportMasterdata.
+func exportMasterdata() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		participants, err := database.GetParticipant(database.GetDBXConnection, tenant)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		tariffMap, err := database.GetTariffNameMap(database.GetDBXConnection, tenant)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		b, err := database.ExportMasterdataToExcel(participants, eeg, tariffMap)
+		if err != nil {
+			log.Errorf("Export masterdata: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		filename := fmt.Sprintf("%s-EEG-Masterdata-%s", tenant, time.Now().Format("20060102"))
+		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
+		w.Header().Set("filename", filename)
+
+		if _, err := b.WriteTo(w); err != nil {
+			log.Errorf("Write masterdata export: %v", err)
+		}
 	}
 }
 
