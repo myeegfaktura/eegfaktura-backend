@@ -78,7 +78,7 @@ type MeteringPoint struct {
 	Direction        DirectionType  `json:"direction,omitempty"`
 	Status           StatusType     `json:"status,omitempty"`
 	StatusCode       null.Int       `json:"statusCode,omitempty" db:"statusCode"`
-	TariffId         null.String    `json:"tariffId" db:"tariff_id"`
+	TariffId         null.String    `json:"tariff_id,omitempty" db:"tariff_id"`
 	EquipmentNumber  null.String    `json:"equipmentNumber,omitempty" db:"equipmentNumber"`
 	EquipmentName    null.String    `json:"equipmentName,omitempty" db:"equipmentName"`
 	InverterId       null.String    `json:"inverterId,omitempty" db:"inverterid"`
