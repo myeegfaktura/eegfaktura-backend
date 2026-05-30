@@ -104,6 +104,34 @@ func GetCommunityId(tenant string) (string, error) {
 	return communityId, err
 }
 
+// GetGridOperators returns the AT grid-operator lookup table as a
+// `{id: name}` map. Source: `base.gridoperators` (id, name) — seeded
+// at deploy time from the public ECP-AT regulator list.
+func GetGridOperators(dbOpen OpenDbXConnection) (map[string]string, error) {
+
+	db, err := dbOpen()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT id, name FROM base.gridoperators`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var id, name string
+	result := map[string]string{}
+	for rows.Next() {
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		result[id] = name
+	}
+	return result, nil
+}
+
 //func fetchEegAddressInfo(db sqlx.DB, tenant string)
 
 func SaveNotification(dbOpen OpenDbXConnection, tenant string, notification string, msgType, role string) error {

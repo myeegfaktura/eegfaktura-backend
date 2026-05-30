@@ -21,6 +21,39 @@ import (
 //	fmt.Printf("EEG: %+v\n", eeg)
 //}
 
+func TestGetGridOperators(t *testing.T) {
+	mockDb, err := GetDatabaseMock()
+	require.NoError(t, err)
+
+	rows := sqlmock.NewRows([]string{"id", "name"}).
+		AddRow("AT003000", "Netz OÖ").
+		AddRow("AT420001", "EHA Energie-Handels-Gesellschaft mbH & Co. KG").
+		AddRow("AT643211", "Montafonerbahn Aktiengesellschaft")
+
+	mockDb.Mock.ExpectQuery(`SELECT id, name FROM base\.gridoperators`).
+		WillReturnRows(rows)
+
+	got, err := GetGridOperators(mockDb.OpenMockDb)
+	require.NoError(t, err)
+	assert.Len(t, got, 3)
+	assert.Equal(t, "Netz OÖ", got["AT003000"])
+	assert.Equal(t, "Montafonerbahn Aktiengesellschaft", got["AT643211"])
+	assert.NoError(t, mockDb.Mock.ExpectationsWereMet())
+}
+
+func TestGetGridOperators_DbError(t *testing.T) {
+	mockDb, err := GetDatabaseMock()
+	require.NoError(t, err)
+
+	mockDb.Mock.ExpectQuery(`SELECT id, name FROM base\.gridoperators`).
+		WillReturnError(fmt.Errorf("connection refused"))
+
+	got, err := GetGridOperators(mockDb.OpenMockDb)
+	assert.Error(t, err)
+	assert.Nil(t, got)
+	assert.NoError(t, mockDb.Mock.ExpectationsWereMet())
+}
+
 func TestUpdateEeg(t *testing.T) {
 	mDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
