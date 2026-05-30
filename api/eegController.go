@@ -32,6 +32,7 @@ func InitEegRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mux.Rou
 	s.HandleFunc("/import/masterdata", jwtWrapper(uploadMasterData())).Methods("POST")
 	s.HandleFunc("/export/masterdata", jwtWrapper(exportMasterdata())).Methods("GET")
 	s.HandleFunc("/notifications/{id}", jwtWrapper(notifications())).Methods("GET")
+	s.HandleFunc("/gridoperators", jwtWrapper(gridOperators())).Methods("GET")
 	s.HandleFunc("/user/get-user", jwtWrapper(getUser())).Methods("GET")
 
 	return r
@@ -56,6 +57,21 @@ func getUser() middleware.JWTHandlerFunc {
 		respondWithJSON(w, http.StatusOK, []map[string]string{
 			{"tenant": tenant, "name": eeg.Name},
 		})
+	}
+}
+
+// gridOperators returns the AT grid-operator lookup table as `{id: name}`
+// (e.g. `{"AT420001": "EHA Energie-Handels-Gesellschaft mbH & Co. KG", ...}`).
+// Frontend consumes it for the EEG-creation grid-operator dropdown.
+// Wire shape matches prod (vfeeg-backend v0.3.05).
+func gridOperators() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		operators, err := database.GetGridOperators(database.GetDBXConnection)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		respondWithJSON(w, http.StatusOK, operators)
 	}
 }
 
