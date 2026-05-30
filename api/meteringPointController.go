@@ -497,19 +497,12 @@ func requestMeteringPointValues() middleware.JWTHandlerFunc {
 		log.WithField("tenant", tenant).Infof("request Metering values %v (%d - %d)", request, fromDate, toDate)
 		if eeg.Online && meterExistsInParticipant {
 			for _, m := range request.MeteringPoints {
-				ebmsMessage := model.EbmsMessage{
-					Sender: strings.ToUpper(tenant),
-					//Sender: strings.ToUpper("SEPP.GAUG"),
-					Receiver: strings.ToUpper(eeg.GridOperator),
-					//Receiver:    strings.ToUpper("OBERMUELLER.PETER"),
-					MessageCode: model.EBMS_ZP_SYNC,
-					Meter:       &model.Meter{MeteringPoint: m.Meter, Direction: m.Direction},
-					Timeline: &model.Timeline{
-						From: fromDate,
-						To:   toDate},
+				meter := &model.MeteringPoint{
+					MeteringPoint: m.Meter,
+					Direction:     m.Direction,
 				}
 				log.WithField("tenant", tenant).Infof("Start Meteringpoint (%v) value request", request.MeteringPoints)
-				if err = mqttclient.SendEbmsMessage(ebmsMessage); err != nil {
+				if err = mqttclient.RequestingEnergyData(eeg, meter, fromDate, toDate); err != nil {
 					respondWithError(w, http.StatusInternalServerError, err.Error())
 					return
 				}
