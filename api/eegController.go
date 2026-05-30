@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/eegfaktura/eegfaktura-backend/api/middleware"
@@ -225,18 +224,11 @@ func syncParticipantsEda() middleware.JWTHandlerFunc {
 		}
 
 		day := time.Now()
-		ebmsMessage := model.EbmsMessage{
-			Sender:      strings.ToUpper(tenant),
-			Receiver:    strings.ToUpper(eeg.GridOperator),
-			MessageCode: model.EBMS_ZP_LIST,
-			Meter:       &model.Meter{MeteringPoint: eeg.CommunityId},
-			Timeline: &model.Timeline{
-				From: time.Date(day.Year(), day.Month(), day.Day()-1, 0, 0, 0, 0, day.Location()).UnixMilli(),
-				To:   time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location()).UnixMilli()},
-		}
+		from := time.Date(day.Year(), day.Month(), day.Day()-1, 0, 0, 0, 0, day.Location()).UnixMilli()
+		to := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location()).UnixMilli()
 
 		log.WithField("tenant", tenant).Info("Start Participant sync")
-		if err = mqttclient.SendEbmsMessage(ebmsMessage); err != nil {
+		if err = mqttclient.RequestingMeteringPointListForCommunity(eeg, from, to); err != nil {
 			respondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -262,18 +254,11 @@ func syncMeterpointEda() middleware.JWTHandlerFunc {
 		}
 
 		day := time.Now()
-		ebmsMessage := model.EbmsMessage{
-			Sender:      strings.ToUpper(tenant),
-			Receiver:    strings.ToUpper(eeg.GridOperator),
-			MessageCode: model.EBMS_ZP_SYNC,
-			Meter:       &model.Meter{MeteringPoint: m.MeteringPoint},
-			Timeline: &model.Timeline{
-				From: time.Date(day.Year(), day.Month(), day.Day()-3, 0, 0, 0, 0, day.Location()).UnixMilli(),
-				To:   time.Date(day.Year(), day.Month(), day.Day()-2, 0, 0, 0, 0, day.Location()).UnixMilli()},
-		}
+		from := time.Date(day.Year(), day.Month(), day.Day()-3, 0, 0, 0, 0, day.Location()).UnixMilli()
+		to := time.Date(day.Year(), day.Month(), day.Day()-2, 0, 0, 0, 0, day.Location()).UnixMilli()
 
 		log.WithField("tenant", tenant).Info("Start Metering sync")
-		if err = mqttclient.SendEbmsMessage(ebmsMessage); err != nil {
+		if err = mqttclient.RequestingEnergyData(eeg, &m, from, to); err != nil {
 			respondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

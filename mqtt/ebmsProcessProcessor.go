@@ -87,6 +87,19 @@ func RequestingMeteringPointList(eeg *model.Eeg, receiver string, from, to int64
 	return dispatch(msg)
 }
 
+// RequestingMeteringPointListForCommunity is the EC-addressed variant
+// of the ZP_LIST request used by syncParticipantsEda: the
+// ProcessDirectory.MeteringPoint field carries the community ID rather
+// than an individual metering point. eda-comm's CPRequestZPListXMLMessage
+// reads `message.meter.meteringPoint` for that XML element, so we set
+// Meter explicitly (newEbmsMessage with meter=nil would leave it empty).
+var RequestingMeteringPointListForCommunity = func(eeg *model.Eeg, from, to int64) error {
+	msg := newEbmsMessage(eeg, nil, model.EBMS_ZP_LIST)
+	msg.Meter = &model.Meter{MeteringPoint: eeg.CommunityId}
+	msg.Timeline = &model.Timeline{From: from, To: to}
+	return dispatch(msg)
+}
+
 // ChangePartitionFactor requests a partition-factor update for a list
 // of metering points. Meters are grouped by their target grid
 // operator (per-meter `GridOperatorId` overrides the EEG default);
