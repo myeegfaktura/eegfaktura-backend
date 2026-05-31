@@ -42,6 +42,43 @@ func GetEeg(dbOpen OpenDbXConnection, tenant string) (*model.Eeg, error) {
 	return &eeg, err
 }
 
+// GetEegByEcId fetches an EEG row by its communityId (the EDA-side
+// identifier used in inbound EBMS payloads). Returns the same shape
+// as GetEeg.
+func GetEegByEcId(dbOpen OpenDbXConnection, ecId string) (*model.Eeg, error) {
+
+	db, err := dbOpen()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	return GetEegByEcIdDB(db, ecId)
+}
+
+// GetEegByEcIdDB is the connection-bound variant used by handlers that
+// need to chain multiple DAO calls against a single opened connection.
+func GetEegByEcIdDB(db *sqlx.DB, ecId string) (*model.Eeg, error) {
+	var eeg model.Eeg
+	err := db.QueryRow(""+
+		"SELECT tenant, name, description, \"businessNr\", legal, gridoperator_name, \"communityId\", gridoperator_code, \"rcNumber\", \"allocationMode\", "+
+		"\"settlementInterval\", \"providerBusinessNr\", street, \"streetNumber\", zip, city, phone, email, website, iban, owner, sepa, "+
+		"\"bankName\", creditor_id, bic, \"bankPurpose\", "+
+		"\"taxNumber\", \"vatNumber\", online, \"contactPerson\" FROM base.eeg WHERE \"communityId\" = $1", ecId).
+		Scan(&eeg.Id, &eeg.Name, &eeg.Description, &eeg.BusinessNr, &eeg.Legal, &eeg.OperatorName,
+			&eeg.CommunityId, &eeg.GridOperator, &eeg.RcNumber,
+			&eeg.AllocationMode, &eeg.SettlementInterval, &eeg.ProviderBusinessNr,
+			&eeg.Street, &eeg.StreetNumber, &eeg.Zip, &eeg.City, &eeg.Contact.Phone, &eeg.Contact.Email,
+			&eeg.Optionals.Website, &eeg.AccountInfo.Iban, &eeg.AccountInfo.Owner, &eeg.AccountInfo.Sepa,
+			&eeg.AccountInfo.BankName, &eeg.AccountInfo.CreditorId, &eeg.AccountInfo.Bic, &eeg.AccountInfo.BankPurpose,
+			&eeg.TaxNumber, &eeg.VatNumber, &eeg.Online, &eeg.ContactPerson,
+		)
+	if err == dbsql.ErrNoRows {
+		return nil, err
+	}
+	return &eeg, err
+}
+
 func UpdateEeg(db *sqlx.DB, tenant string, eeg *model.Eeg) error {
 
 	//db, err := GetDBXConnection()

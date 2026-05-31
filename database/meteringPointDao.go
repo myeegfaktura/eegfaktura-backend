@@ -2,10 +2,13 @@ package database
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/eegfaktura/eegfaktura-backend/model"
+	"github.com/jmoiron/sqlx"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -232,6 +235,64 @@ func UpdateMeteringPointPartFact(dbOpen OpenDbXConnection, tenant, username, par
 
 	if _, err = db.Exec(statement); err != nil {
 		log.WithField("SQL", "INSERT").Errorf("Stmt: %v", statement)
+		return err
+	}
+	return nil
+}
+
+// MeteringPointChangePartFactor appends new partition-factor rows for
+// a batch of meters in a single INSERT...SELECT. Used by the EDA
+// EC_PRTFACT_CHANGE inbound handler when the grid operator confirms a
+// partition-factor change for multiple meters at once.
+//
+// The participantId is resolved per meter via JOIN against
+// base.meteringpoint, so callers only supply the meter id and the new
+// partFact value. createdBy is hard-coded to "system" since this is an
+// EDA-triggered write, not a user action.
+func MeteringPointChangePartFactor(dbOpen OpenDbXConnection, tenant string, meters []model.Meter) error {
+	db, err := dbOpen()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	return MeteringPointChangePartFactorDB(db, tenant, meters)
+}
+
+// MeteringPointChangePartFactorDB is the connection-bound variant; see
+// MeteringPointChangePartFactor for the public DAO entry-point.
+func MeteringPointChangePartFactorDB(db *sqlx.DB, tenant string, meters []model.Meter) error {
+	if len(meters) == 0 {
+		return nil
+	}
+
+	metersJson, err := json.Marshal(meters)
+	if err != nil {
+		return err
+	}
+
+	withClause := goqu.L(
+		fmt.Sprintf(`(SELECT * FROM json_to_recordset('%s') AS cols("meteringPoint" TEXT, direction TEXT, activation BIGINT, "partFact" INT))`, string(metersJson)))
+	insertQuery := goqu.From(TABLE_METERINGPOINT, withClause.As("ma")).
+		Select(
+			goqu.C("metering_point_id"),
+			goqu.C("participant_id"),
+			goqu.C("tenant"),
+			goqu.I("ma.partFact"),
+			goqu.V("system").As("createdBy"),
+		).Where(
+		goqu.C("metering_point_id").Eq(goqu.I("ma.meteringPoint")),
+		goqu.C("tenant").Eq(tenant),
+	)
+	stmt, _, err := goqu.Insert(TABLE_PARTITION_FACT).
+		Cols("metering_point_id", "participant_id", "tenant", "partFact", "createdBy").
+		FromQuery(insertQuery).ToSQL()
+	if err != nil {
+		return err
+	}
+
+	if _, err = db.Exec(stmt); err != nil {
+		log.WithField("SQL", "INSERT").Errorf("Stmt: %v", stmt)
 		return err
 	}
 	return nil

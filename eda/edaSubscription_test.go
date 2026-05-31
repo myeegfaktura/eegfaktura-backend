@@ -187,3 +187,155 @@ func TestProtocolEcReqOnlHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestProtocolEcPrtChangeHandler(t *testing.T) {
+	const ecId = "AT003000000000000000000000000ECID"
+	const tenant = "RC100298"
+
+	t.Run("Antwort (accepted) inserts partition-factor rows", func(t *testing.T) {
+		mockDb, err := database.GetDatabaseMock()
+		require.NoError(t, err)
+		recorder := &RecorderMock{dbOpen: mockDb.OpenMockDb}
+
+		msg := model.SubscribeMessage{
+			MessageCode: model.EBMS_ANS_CHANGE_PARTFACT,
+			Protocol:    model.EC_PRTFACT_CHANGE,
+			Tenant:      tenant,
+			Payload:     model.EbmsMessage{},
+		}
+		require.NoError(t, json.Unmarshal([]byte(`{
+			"conversationId":"AT003000202308171692252620000000321",
+			"messageId":"AT003000202308180842215740187694787",
+			"sender":"AT003000",
+			"receiver":"RC100298",
+			"messageCode":"ANTWORT_CPF",
+			"ecId":"AT003000000000000000000000000ECID",
+			"meterList":[
+				{"meteringPoint":"AT0030000000000000000000000446232","direction":"CONSUMPTION","partFact":50},
+				{"meteringPoint":"AT0030000000000000000000000446233","direction":"GENERATION","partFact":100}
+			]
+		}`), &msg.Payload))
+
+		mockDb.Mock.ExpectQuery("SELECT (.+) FROM base.eeg WHERE \"communityId\" = \\$1").
+			WithArgs(ecId).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"tenant", "name", "description", "businessNr", "legal", "gridoperator_name",
+				"communityId", "gridoperator_code", "rcNumber", "allocationMode",
+				"settlementInterval", "providerBusinessNr", "street", "streetNumber", "zip",
+				"city", "phone", "email", "website", "iban", "owner", "sepa",
+				"bankName", "creditor_id", "bic", "bankPurpose",
+				"taxNumber", "vatNumber", "online", "contactPerson",
+			}).AddRow(
+				tenant, "Pilot EEG", "desc", nil, "VEREIN", "Netz OÖ",
+				ecId, "AT003000", tenant, "STATIC",
+				"ANNUAL", nil, "", "", "",
+				"", nil, nil, nil, nil, nil, false,
+				nil, nil, nil, nil,
+				nil, nil, true, nil,
+			))
+		mockDb.Mock.ExpectExec("INSERT INTO \"base\".\"metering_partition_factor\"").
+			WillReturnResult(sqlmock.NewResult(0, 2))
+
+		recorder.Mock.On("saveHistory", tenant, msg.MessageCode, "AT003000202308171692252620000000321", "ADMIN", "IN", msg.Protocol, msg.Payload)
+
+		protocolEcPrtChangeHandler(msg, recorder)
+
+		require.NoError(t, mockDb.Mock.ExpectationsWereMet())
+		recorder.AssertExpectations(t)
+	})
+
+	t.Run("Ablehnung (rejected) saves notification with error code", func(t *testing.T) {
+		mockDb, err := database.GetDatabaseMock()
+		require.NoError(t, err)
+		recorder := &RecorderMock{dbOpen: mockDb.OpenMockDb}
+
+		msg := model.SubscribeMessage{
+			MessageCode: model.EBMS_REJ_CHANGE_PARTFACT,
+			Protocol:    model.EC_PRTFACT_CHANGE,
+			Tenant:      tenant,
+			Payload:     model.EbmsMessage{},
+		}
+		require.NoError(t, json.Unmarshal([]byte(`{
+			"conversationId":"AT003000202308171692252620000000321",
+			"messageId":"AT003000202308180842215740187694787",
+			"sender":"AT003000",
+			"receiver":"RC100298",
+			"messageCode":"ABLEHNUNG_CPF",
+			"ecId":"AT003000000000000000000000000ECID",
+			"responseData":[{"responseCode":[183]}]
+		}`), &msg.Payload))
+
+		mockDb.Mock.ExpectQuery("SELECT (.+) FROM base.eeg WHERE \"communityId\" = \\$1").
+			WithArgs(ecId).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"tenant", "name", "description", "businessNr", "legal", "gridoperator_name",
+				"communityId", "gridoperator_code", "rcNumber", "allocationMode",
+				"settlementInterval", "providerBusinessNr", "street", "streetNumber", "zip",
+				"city", "phone", "email", "website", "iban", "owner", "sepa",
+				"bankName", "creditor_id", "bic", "bankPurpose",
+				"taxNumber", "vatNumber", "online", "contactPerson",
+			}).AddRow(
+				tenant, "Pilot EEG", "desc", nil, "VEREIN", "Netz OÖ",
+				ecId, "AT003000", tenant, "STATIC",
+				"ANNUAL", nil, "", "", "",
+				"", nil, nil, nil, nil, nil, false,
+				nil, nil, nil, nil,
+				nil, nil, true, nil,
+			))
+
+		recorder.Mock.On("saveNotification", map[string]interface{}{
+			"type":           msg.MessageCode,
+			"meteringPoints": []string{},
+			"responseCodes":  []string{"Summe der gemeldeten Aufteilungsschlüssel übersteigt 100%"},
+		}, tenant, "NOTIFICATION", "ADMIN")
+		recorder.Mock.On("saveHistory", tenant, msg.MessageCode, "AT003000202308171692252620000000321", "ADMIN", "IN", msg.Protocol, msg.Payload)
+
+		protocolEcPrtChangeHandler(msg, recorder)
+
+		require.NoError(t, mockDb.Mock.ExpectationsWereMet())
+		recorder.AssertExpectations(t)
+	})
+
+	t.Run("Anforderung (outbound echo) records history only", func(t *testing.T) {
+		mockDb, err := database.GetDatabaseMock()
+		require.NoError(t, err)
+		recorder := &RecorderMock{dbOpen: mockDb.OpenMockDb}
+
+		msg := model.SubscribeMessage{
+			MessageCode: model.EBMS_REQ_CHANGE_PARTFACT,
+			Protocol:    model.EC_PRTFACT_CHANGE,
+			Tenant:      tenant,
+			Payload:     model.EbmsMessage{},
+		}
+		require.NoError(t, json.Unmarshal([]byte(`{
+			"conversationId":"AT003000202308171692252620000000321",
+			"messageCode":"ANFORDERUNG_CPF",
+			"ecId":"AT003000000000000000000000000ECID"
+		}`), &msg.Payload))
+
+		mockDb.Mock.ExpectQuery("SELECT (.+) FROM base.eeg WHERE \"communityId\" = \\$1").
+			WithArgs(ecId).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"tenant", "name", "description", "businessNr", "legal", "gridoperator_name",
+				"communityId", "gridoperator_code", "rcNumber", "allocationMode",
+				"settlementInterval", "providerBusinessNr", "street", "streetNumber", "zip",
+				"city", "phone", "email", "website", "iban", "owner", "sepa",
+				"bankName", "creditor_id", "bic", "bankPurpose",
+				"taxNumber", "vatNumber", "online", "contactPerson",
+			}).AddRow(
+				tenant, "Pilot EEG", "desc", nil, "VEREIN", "Netz OÖ",
+				ecId, "AT003000", tenant, "STATIC",
+				"ANNUAL", nil, "", "", "",
+				"", nil, nil, nil, nil, nil, false,
+				nil, nil, nil, nil,
+				nil, nil, true, nil,
+			))
+
+		recorder.Mock.On("saveHistory", tenant, msg.MessageCode, "AT003000202308171692252620000000321", "ADMIN", "IN", msg.Protocol, msg.Payload)
+
+		protocolEcPrtChangeHandler(msg, recorder)
+
+		require.NoError(t, mockDb.Mock.ExpectationsWereMet())
+		recorder.AssertExpectations(t)
+	})
+}

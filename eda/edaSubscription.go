@@ -88,7 +88,82 @@ func getSubsriptions() []model.Subscriptions {
 				protocolCmRevImpHandler(msg, recorder)
 			},
 		},
+		{
+			Protocol: model.EC_PRTFACT_CHANGE,
+			Handler: func(msg model.SubscribeMessage) {
+				protocolEcPrtChangeHandler(msg, recorder)
+			},
+		},
 	}
+}
+
+// protocolEcPrtChangeHandler processes the grid-operator response to a
+// partition-factor change request (CR_PARTITIONFACTORCHANGE, MQTT
+// protocol EC_PRTFACT_CHANGE). Three message variants:
+//   - EBMS_ANS_CHANGE_PARTFACT (ANTWORT_CPF) — change accepted, the new
+//     partition factors are appended to base.metering_partition_factor
+//     via MeteringPointChangePartFactor.
+//   - EBMS_REJ_CHANGE_PARTFACT (ABLEHNUNG_CPF) — change rejected, a
+//     notification with the error code is saved for the EEG admin.
+//   - EBMS_REQ_CHANGE_PARTFACT (ANFORDERUNG_CPF) — outbound echo,
+//     recorded for history but no DB side-effect.
+//
+// Tenant lookup goes via EcId (communityId) because EDA inbound
+// payloads identify the EEG by community id, not tenant.
+func protocolEcPrtChangeHandler(msg model.SubscribeMessage, recorder EdaRecording) {
+	logrus.WithField("tenant", msg.Tenant).Printf("Handle Subscriptions: %+v Code: %s", msg.Protocol, msg.MessageCode)
+
+	var meters []model.Meter
+	var errCode int16
+	switch msg.MessageCode {
+	case model.EBMS_REJ_CHANGE_PARTFACT:
+		if len(msg.Payload.ResponseData) > 0 && len(msg.Payload.ResponseData[0].ResponseCode) > 0 {
+			errCode = msg.Payload.ResponseData[0].ResponseCode[0]
+		} else {
+			errCode = 1000
+		}
+	case model.EBMS_ANS_CHANGE_PARTFACT:
+		meters = msg.Payload.MeterList
+		errCode = 0
+	case model.EBMS_REQ_CHANGE_PARTFACT:
+		meters = nil
+	default:
+		logrus.WithField("tenant", msg.Tenant).Warnf("Unknown Messagecode: %v", msg)
+		return
+	}
+
+	db, err := recorder.databaseConnect()
+	if err != nil {
+		logrus.WithField("tenant", msg.Tenant).Errorf("can not open db: %v", err)
+		return
+	}
+	defer db.Close()
+
+	eeg, err := database.GetEegByEcIdDB(db, msg.Payload.EcId)
+	if err != nil {
+		logrus.WithField("tenant", msg.Tenant).Errorf("can not fetch eeg with EcId %q: %v", msg.Payload.EcId, err)
+		return
+	}
+
+	if len(meters) > 0 && errCode == 0 {
+		if err := database.MeteringPointChangePartFactorDB(db, eeg.Id, meters); err != nil {
+			logrus.WithField("tenant", eeg.Id).Errorf("can not change partition factor: %v", err)
+			return
+		}
+	}
+
+	if errCode > 0 {
+		meterIds := make([]string, 0, len(meters))
+		for _, m := range meters {
+			meterIds = append(meterIds, m.MeteringPoint)
+		}
+		_ = recorder.saveNotification(map[string]interface{}{
+			"type":           msg.MessageCode,
+			"meteringPoints": meterIds,
+			"responseCodes":  convertCodes2Strings([]int16{errCode}),
+		}, eeg.Id, "NOTIFICATION", "ADMIN")
+	}
+	_ = recorder.saveHistory(eeg.Id, msg.MessageCode, msg.Payload.ConversationId, "ADMIN", "IN", msg.Protocol, msg.Payload)
 }
 
 func protocolCrMsgHandler(msg model.SubscribeMessage, recorder EdaRecording) {
