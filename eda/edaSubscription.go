@@ -1,6 +1,10 @@
 package eda
 
 import (
+	"bytes"
+	"fmt"
+	"time"
+
 	"github.com/eegfaktura/eegfaktura-backend/database"
 	"github.com/eegfaktura/eegfaktura-backend/model"
 	mqttclient "github.com/eegfaktura/eegfaktura-backend/mqtt"
@@ -94,6 +98,12 @@ func getSubsriptions() []model.Subscriptions {
 				protocolEcPrtChangeHandler(msg, recorder)
 			},
 		},
+		{
+			Protocol: model.EC_PODLIST,
+			Handler: func(msg model.SubscribeMessage) {
+				protocolEcPodListHandler(msg, recorder)
+			},
+		},
 	}
 }
 
@@ -163,6 +173,84 @@ func protocolEcPrtChangeHandler(msg model.SubscribeMessage, recorder EdaRecordin
 			"responseCodes":  convertCodes2Strings([]int16{errCode}),
 		}, eeg.Id, "NOTIFICATION", "ADMIN")
 	}
+	_ = recorder.saveHistory(eeg.Id, msg.MessageCode, msg.Payload.ConversationId, "ADMIN", "IN", msg.Protocol, msg.Payload)
+}
+
+// protocolEcPodListHandler processes the grid-operator response to a
+// CR_PODLIST request (MQTT protocol EC_PODLIST). Three message
+// variants:
+//   - EBMS_ZP_LIST (ANFORDERUNG_ECP) — outbound echo, recorded for
+//     history only.
+//   - EBMS_ZP_LIST_RESPONSE (SENDEN_ECP) — list of meters delivered by
+//     the grid operator. Two side-effects:
+//       1. Render the list to xlsx and email it to the EEG admin (so
+//          the operator-friendly snapshot lands in the admin's inbox).
+//       2. Sync the meters into base.meteringpoint via
+//          database.SyncActiveMeteringPoints (status/process_state
+//          flip to ACTIVE, partFact applied, activeSince COALESCE'd
+//          to the earlier of existing and reported date).
+//   - EBMS_ZP_LIST_REJECTION (ABLEHNUNG_ECP) — recorded only.
+//
+// Email failure does not abort the DB sync — the operator-friendly
+// snapshot is nice-to-have, the DB state is essential.
+func protocolEcPodListHandler(msg model.SubscribeMessage, recorder EdaRecording) {
+	logrus.WithField("tenant", msg.Tenant).Printf("Handle Subscriptions: %+v Code: %s", msg.Protocol, msg.MessageCode)
+
+	switch msg.MessageCode {
+	case model.EBMS_ZP_LIST:
+		_ = recorder.saveHistory(msg.Tenant, msg.MessageCode, msg.Payload.ConversationId, "ADMIN", "OUT", msg.Protocol, msg.Payload)
+		return
+	case model.EBMS_ZP_LIST_REJECTION:
+		_ = recorder.saveHistory(msg.Tenant, msg.MessageCode, msg.Payload.ConversationId, "ADMIN", "IN", msg.Protocol, msg.Payload)
+		return
+	case model.EBMS_ZP_LIST_RESPONSE:
+		// fall through to the main path
+	default:
+		logrus.WithField("tenant", msg.Tenant).Warnf("Unknown Messagecode: %v", msg)
+		return
+	}
+
+	db, err := recorder.databaseConnect()
+	if err != nil {
+		logrus.WithField("tenant", msg.Tenant).Errorf("can not open db: %v", err)
+		return
+	}
+	defer db.Close()
+
+	eeg, err := database.GetEegByEcIdDB(db, msg.Payload.EcId)
+	if err != nil {
+		logrus.WithField("tenant", msg.Tenant).Errorf("can not fetch eeg with EcId %q: %v", msg.Payload.EcId, err)
+		return
+	}
+
+	// Side-effect 1: email the xlsx to the EEG admin (best-effort)
+	if eeg.Email.Valid {
+		if buf, err := database.ExportZPListToExcel(&msg.Payload); err == nil {
+			now := time.Now()
+			attm := &util.Attachment{
+				Type:        "DEFAULT",
+				Filename:    fmt.Sprintf("%s_%s_ZP_PODLIST.xlsx", eeg.RcNumber, now.Format("20060102-1504")),
+				Filecontent: buf,
+				MimeType:    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			}
+			var body bytes.Buffer
+			body.WriteString(fmt.Sprintf("Zählpunktliste für EEG %s — automatisch zugestellt aus EDA-Antwort.", eeg.RcNumber))
+			if err := util.SendMail(eeg.Id, eeg.Email.String,
+				fmt.Sprintf("%s Zählpunktliste %s", eeg.RcNumber, now.Format("20060102-1504")),
+				&body, []*util.Attachment{attm}); err != nil {
+				logrus.WithField("tenant", eeg.Id).WithError(err).Warn("ZP-list email failed (continuing with DB sync)")
+			}
+		} else {
+			logrus.WithField("tenant", eeg.Id).WithError(err).Warn("ZP-list xlsx render failed (continuing with DB sync)")
+		}
+	}
+
+	// Side-effect 2: sync the meter list into base.meteringpoint
+	if err := database.SyncActiveMeteringPointsDB(db, eeg.Id, msg.Payload.MeterList); err != nil {
+		logrus.WithField("tenant", eeg.Id).WithError(err).Error("ZP-list DB sync failed")
+		// Continue to saveHistory so the inbound is still recorded.
+	}
+
 	_ = recorder.saveHistory(eeg.Id, msg.MessageCode, msg.Payload.ConversationId, "ADMIN", "IN", msg.Protocol, msg.Payload)
 }
 

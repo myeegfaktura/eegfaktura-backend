@@ -128,27 +128,47 @@ CREATE TABLE IF NOT EXISTS base.bankaccount
 
 CREATE TABLE IF NOT EXISTS base.meteringpoint
 (
-    metering_point_id TEXT      NOT NULL,
-    participant_id    UUID      NOT NULL,
-    tenant            TEXT      NOT NULL,
-    transformer       TEXT,
-    direction         TEXT      NOT NULL DEFAULT 'CONSUMPTION', /* 'GENERATION' | 'CONSUMPTION' */
-    status            TEXT      NOT NULL DEFAULT 'NEW', /* "NEW" | "PENDING" | "ACCEPTED" | "ACTIVE" | "INACTIVE" */
-    tariff_id         UUID,
-    inverterid        TEXT,
-    "equipmentNumber" TEXT,
-    "equipmentName"   TEXT,
-    street            TEXT,
-    "streetNumber"    TEXT,
-    city              TEXT,
-    zip               TEXT,
-    "registeredSince" DATE      NOT NULL DEFAULT now(),
-    "modifiedAt"      TIMESTAMP NOT NULL DEFAULT now(),
-    "modifiedBy"      TEXT,
+    metering_point_id  TEXT      NOT NULL,
+    consent_id         TEXT,
+    participant_id     UUID      NOT NULL,
+    tenant             TEXT      NOT NULL,
+    grid_operator_name VARCHAR,
+    grid_operator_id   VARCHAR,
+    allocation_factor  FLOAT,
+    transformer        TEXT,
+    direction          TEXT      NOT NULL DEFAULT 'CONSUMPTION', /* 'GENERATION' | 'CONSUMPTION' */
+    status             TEXT      NOT NULL DEFAULT 'NEW', /* "NEW" | "PENDING" | "ACCEPTED" | "ACTIVE" | "INACTIVE" */
+    process_state      TEXT      NOT NULL DEFAULT 'NEW', /* roundtrip state, updated by EDA-inbound handlers */
+    last_process_state TEXT,
+    "statusCode"       INTEGER,
+    tariff_id          UUID,
+    inverterid         TEXT,
+    "equipmentNumber"  TEXT,
+    "equipmentName"    TEXT,
+    street             TEXT,
+    "streetNumber"     TEXT,
+    city               TEXT,
+    zip                TEXT,
+    "registeredSince"  DATE      NOT NULL DEFAULT now(),
+    "modifiedAt"       TIMESTAMP NOT NULL DEFAULT now(),
+    "modifiedBy"       TEXT,
+    activeSince        DATE,
+    inactiveSince      DATE,
+    active             INT       NOT NULL DEFAULT 1,
+    flag               INT       NOT NULL DEFAULT 1,
     CONSTRAINT meteringpointPK PRIMARY KEY (metering_point_id, tenant),
     CONSTRAINT FK_ParticipantMeteringpoint FOREIGN KEY (participant_id) REFERENCES base.participant (id) ON DELETE CASCADE
 --     CONSTRAINT FK_TariffMeteringpoint FOREIGN KEY (tariff_id) REFERENCES base.tariff (id)
 );
+-- NOTE: this file was historically a snapshot of the original public-
+-- fork schema. The src-stack DB is initialized via pg_dump from prod
+-- (see eegfaktura-platform/scripts/bootstrap-poc-data.sh), so the
+-- live DB has the columns above. The EDA-inbound handlers
+-- (protocolEcPodListHandler, protocolEcPrtChangeHandler) require
+-- consent_id, grid_operator_id/name, process_state, activeSince,
+-- inactiveSince, flag. Greenfield deployments without pg_dump
+-- restore need to apply this DDL before the backend starts — see
+-- memory pilot-greenfield-schema-init.
 
 CREATE TABLE IF NOT EXISTS base.notification
 (
