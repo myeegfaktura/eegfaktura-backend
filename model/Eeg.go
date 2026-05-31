@@ -11,7 +11,7 @@ type Eeg struct {
 	Name               string      `json:"name,omitempty"`
 	Description        string      `json:"description"`
 	BusinessNr         null.String `json:"businessNr,omitempty" db:"businessNr"`
-	Area               AreaType    `json:"area"` /* LOCAL | REGIONAL*/
+	Area               AreaType    `json:"area"` /* LOCAL | REGIONAL | BEG | GEA */
 	Legal              string      `json:"legal,omitempty"`
 	OperatorName       string      `json:"operatorName,omitempty" db:"gridoperator_name"`
 	CommunityId        string      `json:"communityId,omitempty" db:"communityId"`
@@ -36,6 +36,15 @@ type AreaType string
 const (
 	LOCAL    AreaType = "LOCAL"
 	REGIONAL AreaType = "REGIONAL"
+	BEG      AreaType = "BEG"
+	GEA      AreaType = "GEA"
+)
+
+type AllocationModeType string
+
+const (
+	STATIC  AllocationModeType = "STATIC"
+	DYNAMIC AllocationModeType = "DYNAMIC"
 )
 
 type AddressType string
