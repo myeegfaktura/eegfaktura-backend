@@ -1,5 +1,9 @@
 FROM golang:1.25
 
+LABEL org.opencontainers.image.title="eegfaktura-backend"
+LABEL org.opencontainers.image.description="EEG Faktura Stammdaten-Backend (Mitglieder, Zählpunkte, Tarife, EDA-Orchestrierung)"
+LABEL org.opencontainers.image.vendor="Verein zur Förderung von Erneuerbaren Energiegemeinschaften"
+LABEL org.opencontainers.image.url=https://github.com/myeegfaktura/eegfaktura-backend
 LABEL org.opencontainers.image.source=https://github.com/myeegfaktura/eegfaktura-backend
 LABEL org.opencontainers.image.licenses=AGPL-3.0
 
