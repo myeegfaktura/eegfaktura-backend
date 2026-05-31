@@ -18,6 +18,9 @@ const (
 	EBMS_ZP_RES                EbMsMessageType = "ANTWORT_PT"
 	EBMS_ZP_REJ                EbMsMessageType = "ABLEHNUNG_PT"
 	EBMS_ZP_LIST_RESPONSE      EbMsMessageType = "SENDEN_ECP"
+	EBMS_ZP_LIST_REJECTION     EbMsMessageType = "ABLEHNUNG_ECP"
+	EBMS_ANS_CHANGE_PARTFACT   EbMsMessageType = "ANTWORT_CPF"
+	EBMS_REJ_CHANGE_PARTFACT   EbMsMessageType = "ABLEHNUNG_CPF"
 	EBMS_AUFHEBUNG_CCMI        EbMsMessageType = "AUFHEBUNG_CCMI"
 	EBMS_AUFHEBUNG_CCMS        EbMsMessageType = "AUFHEBUNG_CCMS"
 	EBMS_AUFHEBUNG_CCMC        EbMsMessageType = "AUFHEBUNG_CCMC"
@@ -30,14 +33,15 @@ const (
 type EdaProtocol string
 
 const (
-	CR_MSG     EdaProtocol = "CR_MSG"
-	CR_REQ_PT  EdaProtocol = "CR_REQ_PT"
-	EC_PODLIST EdaProtocol = "EC_PODLIST"
-	EC_REQ_ONL EdaProtocol = "EC_REQ_ONL"
-	CM_REV_IMP EdaProtocol = "CM_REV_IMP"
-	CM_REV_CUS EdaProtocol = "CM_REV_CUS"
-	CM_REV_SP  EdaProtocol = "CM_REV_SP"
-	ERROR      EdaProtocol = "ERROR"
+	CR_MSG            EdaProtocol = "CR_MSG"
+	CR_REQ_PT         EdaProtocol = "CR_REQ_PT"
+	EC_PODLIST        EdaProtocol = "EC_PODLIST"
+	EC_REQ_ONL        EdaProtocol = "EC_REQ_ONL"
+	EC_PRTFACT_CHANGE EdaProtocol = "EC_PRTFACT_CHANGE"
+	CM_REV_IMP        EdaProtocol = "CM_REV_IMP"
+	CM_REV_CUS        EdaProtocol = "CM_REV_CUS"
+	CM_REV_SP         EdaProtocol = "CM_REV_SP"
+	ERROR             EdaProtocol = "ERROR"
 )
 
 type Timeline struct {
