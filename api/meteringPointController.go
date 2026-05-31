@@ -26,6 +26,7 @@ func InitMeteringRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mu
 	s.HandleFunc("/{pid}/create", jwtWrapper(createMeteringPoint())).Methods("PUT")
 	s.HandleFunc("/{pid}/register", jwtWrapper(registerMeteringPoint())).Methods("POST")
 	s.HandleFunc("/{pid}/syncenergy", jwtWrapper(requestMeteringPointValues())).Methods("POST")
+	s.HandleFunc("/syncenergy", jwtWrapper(requestMeteringPointValuesForTenant())).Methods("POST")
 	s.HandleFunc("/{pid}/revokemeters", jwtWrapper(requestRevokeMeteringPoint())).Methods("POST")
 	s.HandleFunc("/{pid}/updateid/{mid}", jwtWrapper(updateMeteringPointId())).Methods("PUT")
 	s.HandleFunc("/v2/{pid}/update/{mid}", jwtWrapper(updateMeteringPointPartial())).Methods("PUT")
@@ -445,6 +446,63 @@ func registerMeteringPoint() middleware.JWTHandlerFunc {
 			}
 		}
 		respondWithJSON(w, http.StatusCreated, participant)
+	}
+}
+
+// requestMeteringPointValuesForTenant is the tenant-scoped variant of
+// requestMeteringPointValues — no {pid} path-param, the meter list in
+// the body is dispatched directly to the EDA without resolving the
+// participant first. Used by Customer-Web's tenant-wide energy-sync
+// action (eeg.service.ts:395) where the UI groups meters from
+// multiple participants into a single request.
+func requestMeteringPointValuesForTenant() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		request := struct {
+			MeteringPoints []struct {
+				Meter     string              `json:"meter"`
+				Direction model.DirectionType `json:"direction"`
+			} `json:"meteringPoints"`
+			From int64 `json:"from"`
+			To   int64 `json:"to"`
+		}{}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			log.WithField("error", err).Error("Decode Metering Request (Sync) Message Json")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if len(request.MeteringPoints) == 0 {
+			http.Error(w, "no meter selected", http.StatusBadRequest)
+			return
+		}
+
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
+		if err != nil {
+			log.WithField("error", err).Error("Query EEG")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		fromDate := util.TruncateToStartOfDay(time.UnixMilli(request.From)).UnixMilli()
+		toDate := util.TruncateToEndOfDay(time.UnixMilli(request.To)).UnixMilli()
+
+		if !eeg.Online {
+			respondWithStatus(w, http.StatusNoContent)
+			return
+		}
+
+		log.WithField("tenant", tenant).Infof("request Metering values for %d meters (%d - %d)", len(request.MeteringPoints), fromDate, toDate)
+		for _, m := range request.MeteringPoints {
+			meter := &model.MeteringPoint{
+				MeteringPoint: m.Meter,
+				Direction:     m.Direction,
+			}
+			if err = mqttclient.RequestingEnergyData(eeg, meter, fromDate, toDate); err != nil {
+				respondWithError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		respondWithStatus(w, http.StatusNoContent)
 	}
 }
 

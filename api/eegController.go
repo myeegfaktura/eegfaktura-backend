@@ -27,6 +27,7 @@ func InitEegRouter(r *mux.Router, jwtWrapper middleware.JWTWrapperFunc) *mux.Rou
 	s.HandleFunc("/tariff/{id}", jwtWrapper(fetchTariffHistory())).Methods("GET")
 	s.HandleFunc("/tariff/{id}", jwtWrapper(archiveTariff())).Methods("DELETE")
 	s.HandleFunc("/sync/participants", jwtWrapper(syncParticipantsEda())).Methods("POST")
+	s.HandleFunc("/sync/participants/{oid}", jwtWrapper(syncParticipantsByOperatorEda())).Methods("POST")
 	s.HandleFunc("/sync/meterpoint", jwtWrapper(syncMeterpointEda())).Methods("POST")
 	s.HandleFunc("/import/masterdata", jwtWrapper(uploadMasterData())).Methods("POST")
 	s.HandleFunc("/export/masterdata", jwtWrapper(exportMasterdata())).Methods("GET")
@@ -229,6 +230,39 @@ func syncParticipantsEda() middleware.JWTHandlerFunc {
 
 		log.WithField("tenant", tenant).Info("Start Participant sync")
 		if err = mqttclient.RequestingMeteringPointListForCommunity(eeg, from, to); err != nil {
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		respondWithStatus(w, http.StatusNoContent)
+	}
+}
+
+// syncParticipantsByOperatorEda is the per-grid-operator variant of
+// syncParticipantsEda — the {oid} path-param is forwarded as the EBMS
+// receiver of the CR_PODLIST request, so the response only lists
+// metering points of that one operator. Used by Customer-Web's
+// "Stammdaten synchronisieren" action when an EEG has meters across
+// multiple grid operators and the admin wants to query them one at
+// a time. The Fork's `/sync/participants` (no oid) still works and
+// uses RequestingMeteringPointListForCommunity for community-wide
+// pull.
+func syncParticipantsByOperatorEda() middleware.JWTHandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, claims *middleware.PlatformClaims, tenant string) {
+		operatorId := mux.Vars(r)["oid"]
+
+		eeg, err := database.GetEeg(database.GetDBXConnection, tenant)
+		if err != nil {
+			log.WithField("error", err).Error("Query EEG")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		day := time.Now()
+		from := time.Date(day.Year(), day.Month(), day.Day()-1, 0, 0, 0, 0, day.Location()).UnixMilli()
+		to := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location()).UnixMilli()
+
+		log.WithField("tenant", tenant).WithField("operator", operatorId).Info("Start Participant sync (per operator)")
+		if err = mqttclient.RequestingMeteringPointList(eeg, operatorId, from, to); err != nil {
 			respondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
