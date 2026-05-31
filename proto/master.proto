@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "at.ourproject.admin";
+option java_outer_classname = "RegisterAdminProto";
+option go_package = "github.com/eegfaktura/eegfaktura-backend/proto";
+
+package at.ourproject;
+
+// AdminEegService — Admin-Update-Pfade, die der Scala-registration-backend
+// (eeg-registration-backend) per gRPC anspricht, wenn das admin-frontend
+// POST /admin/master/update[/eeg|/participant] sendet. Proto-Layout 1:1
+// aus dem deployten v0.2.12-Jar (at/ourproject/admin/MasterProto)
+// rekonstruiert.
+service AdminEegService {
+  rpc updateValue (UpdateEegRequest) returns (UpdateEegReply) {}
+}
+
+message UpdateEegRequest {
+  enum UPDATE_CLASS {
+    PROCESSSTATUS = 0;
+    INACTIVESINCE = 1;
+    ACTIVESINCE = 2;
+    PARTICIPANT = 3;
+    EEG = 4;
+  }
+
+  UPDATE_CLASS updateClass = 1;
+  string tenant = 2;
+  map<string, string> value = 3;
+  optional string meteringPoint = 4;
+  optional string participantId = 5;
+}
+
+message UpdateEegReply {
+  int32 status = 1;
+  string message = 2;
+}
