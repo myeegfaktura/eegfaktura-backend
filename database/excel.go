@@ -553,3 +553,91 @@ func businessRoleLabel(role string) string {
 	}
 	return "Business"
 }
+
+// ExportZPListToExcel renders the meter list from an inbound EBMS
+// ZP-list response (CR_PODLIST → SENDEN_ECP) into a single-sheet xlsx
+// workbook. The bytes.Buffer is suitable as a mail attachment payload.
+//
+// Used by the EDA POD-list handler so the EEG admin gets a human-
+// readable copy of what the grid operator reported. The same data also
+// flows into base.meteringpoint via SyncActiveMeteringPoints; the xlsx
+// is the operator-friendly side.
+//
+// Wire-format parity with prod (obpeter/vfeeg-backend@e1755a1
+// database/excel.go:730).
+func ExportZPListToExcel(ebmsMsg *model.EbmsMessage) (*bytes.Buffer, error) {
+	f := excelize.NewFile()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.WithError(err).Error("ExportZPListToExcel: close")
+		}
+	}()
+
+	if err := generateZPListMastersheet(f, ebmsMsg); err != nil {
+		return nil, err
+	}
+
+	_ = f.DeleteSheet("Sheet1")
+	return f.WriteToBuffer()
+}
+
+func generateZPListMastersheet(f *excelize.File, ebmsMsg *model.EbmsMessage) error {
+	styleId, _ := f.NewStyle(&excelize.Style{Font: &excelize.Font{Size: 10.0}})
+	styleIdHeader, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10.0},
+		Alignment: &excelize.Alignment{Vertical: "top", WrapText: true},
+	})
+	styleIdDate, _ := f.NewStyle(&excelize.Style{
+		Font:   &excelize.Font{Size: 10.0},
+		NumFmt: 14,
+	})
+
+	sheet := "ZP-List"
+	if _, err := f.NewSheet(sheet); err != nil {
+		return err
+	}
+
+	sw, err := f.NewStreamWriter(sheet)
+	if err != nil {
+		return err
+	}
+
+	_ = sw.SetColWidth(1, 1, 5.0)
+	_ = sw.SetColWidth(2, 3, 30.0)
+	_ = sw.SetColWidth(4, 4, 20.0)
+	_ = sw.SetColWidth(5, 5, 9.5)
+	colNr, _ := excelize.ColumnNameToNumber("G")
+	_ = sw.SetColWidth(colNr, colNr+3, 12.0)
+
+	line := 1
+	_ = sw.SetRow(fmt.Sprintf("A%d", line),
+		[]interface{}{
+			excelize.Cell{Value: "Nr."},
+			excelize.Cell{Value: "Zählpunktname"},
+			excelize.Cell{Value: "ConsentID"},
+			excelize.Cell{Value: "Bezugsrichtung"},
+			excelize.Cell{Value: "Teilnahme-faktor"},
+			excelize.Cell{Value: "statische Aufteilung"},
+			excelize.Cell{Value: "aktiviert"},
+			excelize.Cell{Value: "aktiv seit"},
+			excelize.Cell{Value: "aktiv bis"},
+		}, excelize.RowOpts{StyleID: styleIdHeader, Height: 0.42 * 72})
+
+	for idx, m := range ebmsMsg.MeterList {
+		line++
+		_ = sw.SetRow(fmt.Sprintf("A%d", line),
+			[]interface{}{
+				excelize.Cell{Value: idx + 1},
+				excelize.Cell{Value: m.MeteringPoint},
+				excelize.Cell{Value: m.ConsentID},
+				excelize.Cell{Value: string(m.Direction)},
+				excelize.Cell{Value: m.PartFact},
+				excelize.Cell{Value: m.Share},
+				excelize.Cell{Value: time.UnixMilli(m.Activation), StyleID: styleIdDate},
+				excelize.Cell{Value: time.UnixMilli(m.From), StyleID: styleIdDate},
+				excelize.Cell{Value: time.UnixMilli(m.To), StyleID: styleIdDate},
+			}, excelize.RowOpts{StyleID: styleId})
+	}
+
+	return sw.Flush()
+}

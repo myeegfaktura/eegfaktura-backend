@@ -406,3 +406,142 @@ func UpdateMeteringPointPartial(dbOpen OpenDbXConnection, tenant, username, part
 	}
 	return nil
 }
+
+// SyncActiveMeteringPoints applies an inbound EBMS ZP-list response to
+// the meteringpoint table: for every reported meter, the active row
+// (flag=1) is updated to status=ACTIVE / process_state=ACTIVE and the
+// activeSince column is COALESCE'd to keep the earlier of the existing
+// and the EDA-reported date (the grid operator may send a later date
+// for meters that were already known to be active earlier).
+//
+// Each successful row UPDATE RETURNING participant_id triggers a
+// follow-up UPDATE on metering_partition_factor for that meter's
+// latest version, applying the new partFact.
+//
+// The whole operation runs in a single transaction; rollback on first
+// error. Source: parity port from obpeter/vfeeg-backend@e1755a1
+// database/meteringPointDao.go:1014 UpdateActiveMeteringPoints.
+// Renamed to make the "EDA-triggered sync" semantic explicit and avoid
+// collision with the Fork's own UpdateMeteringPoint family.
+//
+// Schema preconditions (verified present in src-stack via pg_dump
+// restore — see memory pilot-greenfield-schema-init):
+//   - base.meteringpoint: activeSince DATE, flag INT, process_state TEXT
+//   - base.metering_partition_factor: version SERIAL
+func SyncActiveMeteringPoints(dbOpen OpenDbXConnection, tenant string, meters []model.Meter) error {
+	db, err := dbOpen()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	return SyncActiveMeteringPointsDB(db, tenant, meters)
+}
+
+// SyncActiveMeteringPointsDB is the connection-bound variant; see
+// SyncActiveMeteringPoints for the public DAO entry-point.
+func SyncActiveMeteringPointsDB(db *sqlx.DB, tenant string, meters []model.Meter) error {
+	if len(meters) == 0 {
+		return nil
+	}
+
+	dedup := standardizeMeteringPointList(meters)
+
+	tx, err := db.Beginx()
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	for _, m := range dedup {
+		activeSince := time.UnixMilli(m.From)
+
+		updateSQL, _, err := pgDialect.Update(TABLE_METERINGPOINT).
+			Set(goqu.Record{
+				"status":        string(model.ACTIVE),
+				"process_state": "ACTIVE",
+				"activeSince": goqu.Case().
+					When(goqu.COALESCE(goqu.C("activeSince"), goqu.V(activeSince)).Gte(activeSince), activeSince).
+					Else(goqu.C("activeSince")),
+				"modifiedAt": time.Now(),
+				"modifiedBy": "eda-sync",
+			}).
+			Where(goqu.Ex{
+				"tenant":            tenant,
+				"metering_point_id": m.MeteringPoint,
+				"flag":              1,
+			}).
+			Returning("participant_id").
+			ToSQL()
+		if err != nil {
+			return err
+		}
+
+		var participantId string
+		err = tx.Get(&participantId, updateSQL)
+		if err == sql.ErrNoRows {
+			log.WithField("tenant", tenant).WithField("meter", m.MeteringPoint).
+				Warn("SyncActiveMeteringPoints: no matching row (flag=1), skipping")
+			continue
+		}
+		if err != nil {
+			log.WithField("SQL", "UPDATE").Errorf("Stmt: %v", updateSQL)
+			return err
+		}
+
+		latestVersion := goqu.From(TABLE_PARTITION_FACT).Select(goqu.MAX("version")).Where(goqu.Ex{
+			"tenant":            tenant,
+			"participant_id":    participantId,
+			"metering_point_id": m.MeteringPoint,
+		})
+		partFactSQL, _, err := pgDialect.Update(TABLE_PARTITION_FACT).
+			Set(goqu.Record{"partFact": m.PartFact}).
+			Where(goqu.Ex{
+				"tenant":            tenant,
+				"metering_point_id": m.MeteringPoint,
+				"participant_id":    participantId,
+				"version":           latestVersion,
+			}).
+			ToSQL()
+		if err != nil {
+			return err
+		}
+		if _, err = tx.Exec(partFactSQL); err != nil {
+			log.WithField("SQL", "UPDATE").Errorf("Stmt: %v", partFactSQL)
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
+// standardizeMeteringPointList dedups an EDA-reported meter list by
+// metering-point id, keeping the entry with the latest From timestamp
+// (the grid operator may include multiple historical rows per meter;
+// we only care about the most recent activation).
+func standardizeMeteringPointList(ml []model.Meter) []model.Meter {
+	if len(ml) <= 1 {
+		return ml
+	}
+	by := map[string]model.Meter{}
+	for _, m := range ml {
+		existing, ok := by[m.MeteringPoint]
+		if !ok || m.From > existing.From {
+			by[m.MeteringPoint] = m
+		}
+	}
+	out := make([]model.Meter, 0, len(by))
+	for _, m := range by {
+		out = append(out, m)
+	}
+	return out
+}
